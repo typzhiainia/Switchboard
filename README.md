@@ -36,7 +36,7 @@ run.bat        :: 启动网关，自动打开 http://127.0.0.1:8688/
 build.bat
 ```
 
-生成 `dist\Switchboard\Switchboard.exe`（已内置 Python 运行时）。再用 [Inno Setup 6](https://jrsoftware.org/isdl.php) 打开 `installer.iss` 编译，得到 `installer-output\Switchboard-Setup-1.1.0.exe`，双击安装即用，无需安装 Python。
+生成 `dist\Switchboard\Switchboard.exe`（已内置 Python 运行时）。再用 [Inno Setup 6](https://jrsoftware.org/isdl.php) 打开 `installer.iss` 编译，得到 `installer-output\Switchboard-Setup-1.2.0.exe`，双击安装即用，无需安装 Python。
 
 ## 在线更新
 
