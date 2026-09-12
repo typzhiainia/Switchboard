@@ -131,7 +131,18 @@ def api_status(_=Depends(require_admin)):
 
 @app.get("/api/providers")
 def api_list_providers(_=Depends(require_admin)):
-    return db.list_providers()
+    out = db.list_providers()
+    for p in out:
+        p["circuit"] = proxy.CIRCUIT.status_of(p["id"])
+    return out
+
+
+@app.post("/api/providers/{pid}/circuit/reset")
+def api_reset_circuit(pid: int, _=Depends(require_admin)):
+    if not db.get_provider(pid):
+        raise HTTPException(404, "上游不存在")
+    proxy.CIRCUIT.record_success(pid)
+    return {"ok": True, "circuit": proxy.CIRCUIT.status_of(pid)}
 
 
 @app.post("/api/providers", status_code=201)
@@ -368,7 +379,7 @@ async def openai_proxy(request: Request, path: str):
     if path == "models" and request.method == "GET":
         return await _aggregate_models()
 
-    candidates = db.select_providers_for_model(model)
+    candidates = _ordered_candidates(model)
     if not candidates:
         return _json_error(
             503,
@@ -387,12 +398,30 @@ async def openai_proxy(request: Request, path: str):
             status, headers, content, meta, err = await proxy.forward_once(
                 provider, endpoint, body, False, _pass_headers(request))
             if err is None and status is not None and status < 500:
+                proxy.CIRCUIT.record_success(provider["id"])
                 _write_log(provider, key, model, endpoint, status, meta, stream=False)
                 return _downstream_response(status, headers, content)
+            proxy.CIRCUIT.record_failure(provider["id"])
             last_error = err or f"HTTP {status}"
         _write_log(provider, key, model, endpoint, 0,
                    {"error": last_error}, stream=want_stream)
     return _json_error(502, f"所有上游均失败: {last_error}", "upstream_error")
+
+
+def _ordered_candidates(model: str) -> list:
+    """选路：优先级分组（小=优先）→ 组内过滤熔断上游后做平滑加权轮询；
+    整组全部熔断时仍纳入该组作为兜底尝试（即半开试探）。"""
+    cands = db.select_providers_for_model(model)
+    groups: dict[int, list] = {}
+    for p in cands:
+        groups.setdefault(p["priority"], []).append(p)
+    ordered = []
+    for prio in sorted(groups):
+        group = [p for p in groups[prio] if not proxy.CIRCUIT.is_open(p["id"])]
+        if not group:
+            group = groups[prio]
+        ordered.extend(proxy.PICKER.order(group))
+    return ordered
 
 
 def _pass_headers(request: Request) -> dict:
@@ -438,6 +467,7 @@ async def _do_stream(provider, endpoint, body, key, model):
                 provider, endpoint, body):
             if st is not None:  # 首元信息
                 if st >= 400:
+                    proxy.CIRCUIT.record_failure(provider["id"])
                     payload = (chunk or b"") or json.dumps(
                         {"error": {"message": err or f"HTTP {st}", "code": st}}).encode()
                     yield _downstream_response(st, headers or {}, payload).body
@@ -445,11 +475,13 @@ async def _do_stream(provider, endpoint, body, key, model):
                                {"latency_ms": (meta or {}).get("latency_ms")},
                                stream=True, err_override=err)
                     return
+                proxy.CIRCUIT.record_success(provider["id"])
                 continue
             if chunk:
                 sent = True
                 yield chunk
             if err:
+                proxy.CIRCUIT.record_failure(provider["id"])
                 _write_log(provider, key, model, endpoint, 0, meta or {},
                            stream=True, err_override=err)
                 logged = True

@@ -42,6 +42,65 @@ def join_url(base: str, endpoint: str) -> str:
     return base + endpoint
 
 
+class CircuitBreaker:
+    """熔断器：同一上游连续失败达到阈值后熔断，冷却期内不再参与选路；
+    冷却结束后自动半开，试探成功即恢复。"""
+
+    def __init__(self, threshold: int = 3, cooldown: float = 60.0):
+        self.threshold = threshold
+        self.cooldown = cooldown
+        self._state: dict[int, dict] = {}
+
+    def is_open(self, pid: int) -> bool:
+        st = self._state.get(pid)
+        return bool(st and st["open_until"] > time.time())
+
+    def record_success(self, pid: int) -> None:
+        self._state.pop(pid, None)
+
+    def record_failure(self, pid: int) -> None:
+        st = self._state.setdefault(pid, {"fails": 0, "open_until": 0.0})
+        st["fails"] += 1
+        if st["fails"] >= self.threshold:
+            st["open_until"] = time.time() + self.cooldown
+            st["fails"] = 0
+
+    def status_of(self, pid: int) -> dict:
+        st = self._state.get(pid) or {"fails": 0, "open_until": 0.0}
+        remaining = max(0, round(st["open_until"] - time.time()))
+        return {"open": remaining > 0, "fails": st["fails"], "remaining": remaining}
+
+
+CIRCUIT = CircuitBreaker()
+
+
+class WeightedPicker:
+    """平滑加权轮询：同优先级上游按 weight 均匀分散调度（如权重 2:1 时序列为 A B A）。"""
+
+    def __init__(self):
+        self._current: dict[int, int] = {}
+
+    def order(self, providers: list[dict]) -> list[dict]:
+        """返回本轮尝试顺序：首位为平滑轮询选中的上游，其余按权重降序作为故障转移候补。"""
+        if not providers:
+            return []
+        total = sum(max(p.get("weight") or 1, 1) for p in providers)
+        best, best_cw = None, None
+        for p in providers:
+            w = max(p.get("weight") or 1, 1)
+            cw = self._current.get(p["id"], 0) + w
+            self._current[p["id"]] = cw
+            if best is None or cw > best_cw:
+                best, best_cw = p, cw
+        self._current[best["id"]] = best_cw - total
+        rest = [p for p in providers if p is not best]
+        rest.sort(key=lambda p: -(p.get("weight") or 1))
+        return [best] + rest
+
+
+PICKER = WeightedPicker()
+
+
 async def check_provider(provider: dict) -> dict:
     """对上游执行健康检查：优先 GET /v1/models，失败则 HEAD base_url。"""
     url = join_url(provider["base_url"], "/v1/models")
@@ -60,12 +119,15 @@ async def check_provider(provider: dict) -> dict:
             except (json.JSONDecodeError, AttributeError):
                 pass
             db.set_provider_health(provider["id"], "healthy", latency)
+            CIRCUIT.record_success(provider["id"])
             return {"ok": True, "latency_ms": latency, "models": models}
         db.set_provider_health(provider["id"], "unhealthy", latency)
+        CIRCUIT.record_failure(provider["id"])
         return {"ok": False, "latency_ms": latency, "error": f"HTTP {r.status_code}"}
     except Exception as e:  # noqa: BLE001 - 健康检查需捕获所有网络异常
         latency = round((time.time() - t0) * 1000, 1)
         db.set_provider_health(provider["id"], "unhealthy", latency)
+        CIRCUIT.record_failure(provider["id"])
         return {"ok": False, "latency_ms": latency, "error": str(e)[:300]}
 
 

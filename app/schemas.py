@@ -12,6 +12,7 @@ class ProviderIn(BaseModel):
     priority: int = 0
     timeout: float = 60.0
     max_retries: int = Field(default=1, ge=0, le=5)
+    weight: int = Field(default=1, ge=1, le=100)
     models: list[str] = Field(default_factory=list)
     headers: dict[str, str] = Field(default_factory=dict)
 

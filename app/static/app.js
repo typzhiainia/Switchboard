@@ -250,15 +250,25 @@ const STATUS_BADGE = {
   unknown: '<span class="dot off"></span>未检测',
 };
 
+function healthCell(p) {
+  const c = p.circuit || {};
+  if (c.open) {
+    return `<span class="dot err"></span>熔断 ${c.remaining}s` +
+      `<button class="small" style="margin-left:6px" onclick="resetCircuit(${p.id})">重置</button>`;
+  }
+  const base = STATUS_BADGE[p.status] || STATUS_BADGE.unknown;
+  return c.fails ? `${base} <span class="dim" style="font-size:12px">(连续失败${c.fails})</span>` : base;
+}
+
 async function loadProviders() {
   const list = await api("/api/providers");
   const rows = list.map((p) => `
     <tr>
       <td><b>${esc(p.name)}</b><br><span class="dim" style="font-size:12px">${esc(p.base_url)}</span></td>
       <td class="mono" style="max-width:220px;word-break:break-all">${esc((p.models || []).join(", ") || "-")}</td>
-      <td>${p.priority}</td>
+      <td>${p.priority} / ${p.weight || 1}</td>
       <td>${p.latency_ms != null ? Math.round(p.latency_ms) + "ms" : "-"}</td>
-      <td>${STATUS_BADGE[p.status] || STATUS_BADGE.unknown}</td>
+      <td>${healthCell(p)}</td>
       <td>${p.enabled ? '<span class="badge ok">已启用</span>' : '<span class="badge off">已停用</span>'}</td>
       <td><div class="btn-group">
         <button class="small" onclick="checkProv(${p.id})">检测</button>
@@ -268,9 +278,14 @@ async function loadProviders() {
       </div></td>
     </tr>`);
   $("#tblProviders").innerHTML =
-    `<tr><th>上游</th><th>支持模型</th><th>优先级</th><th>延迟</th><th>健康</th><th>状态</th><th>操作</th></tr>` +
+    `<tr><th>上游</th><th>支持模型</th><th>优先级/权重</th><th>延迟</th><th>健康</th><th>状态</th><th>操作</th></tr>` +
     (rows.join("") || `<tr><td colspan="7" class="dim">暂无上游，点击右上角添加</td></tr>`);
 }
+window.resetCircuit = async (id) => {
+  await api(`/api/providers/${id}/circuit/reset`, { method: "POST" });
+  toast("熔断已重置");
+  loadProviders();
+};
 window.checkProv = async (id) => {
   toast("正在检测上游...");
   try {
@@ -296,6 +311,7 @@ window.editProv = (id) => {
     $("#pKey").value = p.api_key;
     $("#pModels").value = (p.models || []).join(", ");
     $("#pPriority").value = p.priority;
+    $("#pWeight").value = p.weight || 1;
     $("#pTimeout").value = p.timeout;
     $("#pRetries").value = p.max_retries;
     $("#pHeaders").value = JSON.stringify(p.headers || {});
@@ -305,7 +321,8 @@ window.editProv = (id) => {
 $("#btnAddProv").onclick = () => {
   $("#provModalTitle").textContent = "添加上游";
   ["pId", "pName", "pBase", "pKey", "pModels"].forEach((i) => ($("#" + i).value = ""));
-  $("#pPriority").value = 0; $("#pTimeout").value = 60; $("#pRetries").value = 1;
+  $("#pPriority").value = 0; $("#pWeight").value = 1;
+  $("#pTimeout").value = 60; $("#pRetries").value = 1;
   $("#pHeaders").value = "";
   $("#provModal").classList.remove("hidden");
 };
@@ -319,6 +336,7 @@ $("#btnSaveProv").onclick = async () => {
     name: $("#pName").value.trim(), base_url: $("#pBase").value.trim(),
     api_key: $("#pKey").value, models, headers,
     enabled: true, priority: +$("#pPriority").value || 0,
+    weight: Math.max(1, Math.min(100, +$("#pWeight").value || 1)),
     timeout: +$("#pTimeout").value || 60, max_retries: +$("#pRetries").value || 0,
   };
   try {

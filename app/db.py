@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS providers (
   max_retries INTEGER NOT NULL DEFAULT 1,
   models TEXT NOT NULL DEFAULT '[]',
   headers TEXT NOT NULL DEFAULT '{}',
+  weight INTEGER NOT NULL DEFAULT 1,
   created_at REAL NOT NULL,
   last_check_at REAL,
   status TEXT NOT NULL DEFAULT 'unknown',
@@ -91,6 +92,9 @@ def get_db() -> sqlite3.Connection:
 def init_db() -> None:
     conn = sqlite3.connect(db_path())
     conn.executescript(SCHEMA)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(providers)")]
+    if "weight" not in cols:
+        conn.execute("ALTER TABLE providers ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
     conn.commit()
     conn.close()
 
@@ -147,13 +151,14 @@ def create_provider(data: dict) -> int:
     conn = get_db()
     cur = conn.execute(
         "INSERT INTO providers(name,base_url,api_key,enabled,priority,timeout,max_retries,"
-        "models,headers,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "models,headers,weight,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
         (
             data["name"], data["base_url"].rstrip("/"), data.get("api_key", ""),
             1 if data.get("enabled", True) else 0, int(data.get("priority", 0)),
             float(data.get("timeout", 60)), int(data.get("max_retries", 1)),
             json.dumps(data.get("models", []), ensure_ascii=False),
             json.dumps(data.get("headers", {}), ensure_ascii=False),
+            max(1, int(data.get("weight", 1))),
             time.time(),
         ),
     )
@@ -165,13 +170,14 @@ def update_provider(pid: int, data: dict) -> None:
     conn = get_db()
     conn.execute(
         "UPDATE providers SET name=?,base_url=?,api_key=?,enabled=?,priority=?,timeout=?,"
-        "max_retries=?,models=?,headers=? WHERE id=?",
+        "max_retries=?,models=?,headers=?,weight=? WHERE id=?",
         (
             data["name"], data["base_url"].rstrip("/"), data.get("api_key", ""),
             1 if data.get("enabled", True) else 0, int(data.get("priority", 0)),
             float(data.get("timeout", 60)), int(data.get("max_retries", 1)),
             json.dumps(data.get("models", []), ensure_ascii=False),
-            json.dumps(data.get("headers", {}), ensure_ascii=False), pid,
+            json.dumps(data.get("headers", {}), ensure_ascii=False),
+            max(1, int(data.get("weight", 1))), pid,
         ),
     )
     conn.commit()
