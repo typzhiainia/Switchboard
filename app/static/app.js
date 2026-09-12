@@ -472,7 +472,7 @@ async function loadSettings() {
 function fillUpdateSource(s) {
   $("#setUpdateRepo").value = s.update_repo || "";
   $("#setUpdateToken").value = "";
-  $("#setUpdateToken").placeholder = s.update_token_set ? "已设置，留空保持不变" : "cnb.cool 个人设置中创建";
+  $("#setUpdateToken").placeholder = s.update_token_set ? "已设置，留空保持不变" : "在托管平台个人设置中创建";
 }
 
 const verTuple = (v) => (String(v || "").match(/\d+/g) || ["0"]).map(Number);

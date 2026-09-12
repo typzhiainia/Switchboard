@@ -137,17 +137,16 @@ client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密
       </div>
       <div class="panel form">
         <h3>软件更新</h3>
-        <div class="row3" style="max-width:640px">
-          <label>更新仓库（CNB 仓库，格式 组织/仓库）<input id="setUpdateRepo" placeholder="例如 my-org/switchboard"></label>
-          <label>访问令牌（CNB Open API 必需）<input id="setUpdateToken" type="password" autocomplete="new-password" placeholder="留空保持不变"></label>
-          <label>&nbsp;</label>
+        <div class="row3" style="max-width:560px;grid-template-columns:1fr 1fr">
+          <label>更新仓库（格式 组织/仓库）<input id="setUpdateRepo" placeholder="例如 my-org/switchboard"></label>
+          <label>访问令牌（Open API 调用必需）<input id="setUpdateToken" type="password" autocomplete="new-password" placeholder="留空保持不变"></label>
         </div>
         <div class="btn-group">
           <button id="btnSaveUpdateSource">保存更新源</button>
           <button class="primary" id="btnCheckUpdate">检查更新</button>
         </div>
         <div id="updateInfo" class="hidden" style="margin-top:14px"></div>
-        <p class="hint" style="margin-top:10px;margin-bottom:0">以本仓库在 CNB 发布的 Release 为更新源：在 CNB 上发布新版本后，用户点「检查更新」即可一键下载、替换并自动重启完成升级。访问令牌在 cnb.cool 个人设置中创建，仅保存在本机数据库。守护模式（start-protected.bat）下请先关闭守护窗口再更新；安装在 Program Files 的目录可能因权限无法自动替换，需以管理员身份运行或改用安装包。</p>
+        <p class="hint" style="margin-top:10px;margin-bottom:0">以代码仓库发布的 Release 为更新源：发布新版本后，点「检查更新」即可一键下载、替换并自动重启完成升级。访问令牌在托管平台的个人设置中创建，仅保存在本机数据库。守护模式（start-protected.bat）下请先关闭守护窗口再更新；安装在 Program Files 的目录可能因权限无法自动替换，需以管理员身份运行或改用安装包。</p>
       </div>
       <div class="panel form">
         <h3>管理令牌</h3>

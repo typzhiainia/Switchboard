@@ -113,7 +113,8 @@ button.small { padding: 4px 10px; font-size: 12px; }
 
 /* 表单 */
 .form label { display: block; margin-bottom: 14px; color: var(--dim); font-size: 13px; max-width: 420px; }
-.form input[type=text], .form input:not([type]), .form select, .form textarea {
+.form input[type=text], .form input[type=number], .form input[type=password],
+.form input:not([type]), .form select, .form textarea {
   width: 100%; margin-top: 5px; padding: 9px 10px; border-radius: 8px;
   border: 1px solid var(--field); background: #fff; color: var(--text);
   font-family: inherit; outline: none; }
