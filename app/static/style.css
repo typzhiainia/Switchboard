@@ -136,6 +136,8 @@ button.small { padding: 4px 10px; font-size: 12px; }
 .pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 14px; color: var(--dim); }
 
 /* 模型测试 */
+.up-notes { background: #f1f3f4; border-radius: 8px; padding: 12px 14px; margin-top: 8px;
+  white-space: pre-wrap; word-break: break-word; font-size: 13px; max-height: 260px; overflow: auto; }
 .test-out { background: #fff; border: 1px solid var(--line); border-radius: 8px;
   padding: 14px; min-height: 120px; max-height: 420px; overflow: auto;
   white-space: pre-wrap; word-break: break-word; line-height: 1.6; }

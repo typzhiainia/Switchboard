@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, db, proxy, schemas
+from . import __version__, db, proxy, schemas, updater
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR)) / "app" / "static"
@@ -257,6 +257,8 @@ def api_get_settings(_=Depends(require_admin)):
         "open_browser_on_start": db.get_setting("open_browser_on_start", "1") == "1",
         "circuit_threshold": int(db.get_setting("circuit_threshold", "3")),
         "circuit_cooldown": float(db.get_setting("circuit_cooldown", "60")),
+        "update_repo": db.get_setting("update_repo", ""),
+        "update_token_set": bool(db.get_setting("update_token", "")),
         "admin_token": _STATE["admin_token"],
     }
 
@@ -266,21 +268,42 @@ def api_put_settings(s: schemas.SettingsIn, _=Depends(require_admin)):
     d = s.model_dump(exclude_none=True)
     if "listen_port" in d and not (1 <= d["listen_port"] <= 65535):
         raise HTTPException(400, "端口无效")
+    if "update_repo" in d:
+        repo = d["update_repo"].strip().strip("/").removesuffix(".git")
+        if repo and not repo.count("/") == 1:
+            raise HTTPException(400, '更新仓库格式应为 "组织/仓库"，如 my-org/switchboard')
+        d["update_repo"] = repo
     for k, v in d.items():
         db.set_setting(k, "1" if v is True else "0" if v is False else str(v))
     return api_get_settings()
 
 
+@app.get("/api/update/check")
+async def api_update_check(_=Depends(require_admin)):
+    return await updater.check_update()
+
+
+@app.post("/api/update/apply")
+async def api_update_apply(_=Depends(require_admin)):
+    try:
+        result = await updater.apply_update()
+    except updater.UpdateError as e:
+        raise HTTPException(400, str(e))
+    # 先回响应再停机，由更新助手进程替换文件并重新启动服务
+    asyncio.create_task(_shutdown_later(0.5))
+    return result
+
+
+async def _shutdown_later(delay: float) -> None:
+    await asyncio.sleep(delay)
+    if _SERVER:
+        _SERVER.should_exit = True
+
+
 @app.post("/api/shutdown")
 async def api_shutdown(_=Depends(require_admin)):
     # 先回响应再关，不然客户端收不到结果
-
-    async def _later():
-        await asyncio.sleep(0.5)
-        if _SERVER:
-            _SERVER.should_exit = True
-
-    asyncio.create_task(_later())
+    asyncio.create_task(_shutdown_later(0.5))
     return {"ok": True, "message": "服务正在停止"}
 
 

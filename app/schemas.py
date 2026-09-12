@@ -45,6 +45,8 @@ class SettingsIn(BaseModel):
     open_browser_on_start: Optional[bool] = None
     circuit_threshold: Optional[int] = Field(default=None, ge=1, le=100)
     circuit_cooldown: Optional[float] = Field(default=None, ge=1, le=86400)
+    update_repo: Optional[str] = Field(default=None, max_length=200)
+    update_token: Optional[str] = Field(default=None, max_length=200)
 
 
 class HealthResult(BaseModel):

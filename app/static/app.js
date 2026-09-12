@@ -463,8 +463,107 @@ async function loadSettings() {
   $("#setCircuitThreshold").value = s.circuit_threshold;
   $("#setCircuitCooldown").value = s.circuit_cooldown;
   $("#setBrowser").checked = s.open_browser_on_start;
+  fillUpdateSource(s);
   $("#adminToken").value = s.admin_token;
   $("#dataDir").textContent = v.data_dir;
+}
+
+// ---- online update ----
+function fillUpdateSource(s) {
+  $("#setUpdateRepo").value = s.update_repo || "";
+  $("#setUpdateToken").value = "";
+  $("#setUpdateToken").placeholder = s.update_token_set ? "已设置，留空保持不变" : "cnb.cool 个人设置中创建";
+}
+
+const verTuple = (v) => (String(v || "").match(/\d+/g) || ["0"]).map(Number);
+
+function verGte(a, b) {
+  const x = verTuple(a), y = verTuple(b);
+  const n = Math.max(x.length, y.length);
+  for (let i = 0; i < n; i++) {
+    const p = x[i] || 0, q = y[i] || 0;
+    if (p > q) return true;
+    if (p < q) return false;
+  }
+  return true;
+}
+
+$("#btnSaveUpdateSource").onclick = async () => {
+  const json = { update_repo: $("#setUpdateRepo").value.trim() };
+  const tok = $("#setUpdateToken").value.trim();
+  if (tok) json.update_token = tok;
+  try {
+    const s = await api("/api/settings", { method: "PUT", json });
+    fillUpdateSource(s);
+    toast("更新源已保存");
+  } catch (e) { toast(e.message); }
+};
+
+$("#btnCheckUpdate").onclick = async () => {
+  const box = $("#updateInfo");
+  box.classList.remove("hidden");
+  box.innerHTML = '<span class="dim">正在检查更新...</span>';
+  try {
+    renderUpdateInfo(await api("/api/update/check"));
+  } catch (e) {
+    box.innerHTML = `<span style="color:var(--err)">检查失败：${esc(e.message)}</span>`;
+  }
+};
+
+function renderUpdateInfo(r) {
+  const box = $("#updateInfo");
+  if (!r.latest) {
+    box.innerHTML = `<span style="color:var(--err)">${esc(r.error || "无法获取版本信息")}</span>` +
+      (r.configured ? "" : `<div class="hint" style="margin:6px 0 0">请先在上方填写更新仓库并保存。</div>`);
+    return;
+  }
+  const l = r.latest;
+  let html = `<div>当前版本 <b>v${esc(r.current_version)}</b>（${r.mode === "windows" ? "Windows 安装版" : "源码运行"}）` +
+    ` · 最新版本 <b>v${esc(l.version || "-")}</b>${l.name ? `（${esc(l.name)}）` : ""}</div>`;
+  if (l.published_at) {
+    html += `<div class="dim" style="font-size:12px;margin-top:4px">发布时间：${esc(String(l.published_at).replace("T", " ").slice(0, 19))}</div>`;
+  }
+  if (l.notes) html += `<pre class="up-notes">${esc(l.notes)}</pre>`;
+  if (r.error) html += `<div style="color:var(--err);margin-top:6px">${esc(r.error)}</div>`;
+  if (r.update_available) {
+    html += `<div class="btn-group" style="margin-top:10px"><button class="primary" id="btnApplyUpdate">立即更新到 v${esc(l.version)}</button></div>`;
+  } else if (!r.error) {
+    html += `<div style="margin-top:8px"><span class="badge ok">已是最新版本</span></div>`;
+  }
+  box.innerHTML = html;
+  const btn = $("#btnApplyUpdate");
+  if (btn) btn.onclick = () => applyUpdate(l.version);
+}
+
+async function applyUpdate(version) {
+  if (!confirm(`确认更新到 v${version}？\n更新过程中服务将自动重启，期间 API 会短暂不可用。`)) return;
+  const box = $("#updateInfo");
+  box.innerHTML = '<span class="dim">正在下载并应用更新，请勿关闭服务窗口...</span>';
+  try {
+    await api("/api/update/apply", { method: "POST" });
+    box.innerHTML = `<span class="dim">更新包已就绪，服务正在重启完成升级（v${esc(version)}）...</span>`;
+    waitForRestart(version);
+  } catch (e) {
+    box.innerHTML = `<span style="color:var(--err)">更新失败：${esc(e.message)}</span>`;
+  }
+}
+
+async function waitForRestart(version) {
+  const box = $("#updateInfo");
+  for (let i = 0; i < 45; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const resp = await fetch("/api/status", { headers: { "X-Admin-Token": ADMIN_TOKEN } });
+      if (!resp.ok) continue;
+      const st = await resp.json();
+      if (st.version && verGte(st.version, version)) {
+        box.innerHTML = `<span class="badge ok">更新完成</span> <span class="dim">已重启到 v${esc(st.version)}，即将刷新页面...</span>`;
+        setTimeout(() => location.reload(), 1200);
+        return;
+      }
+    } catch (e) { /* 服务尚未就绪，继续等待 */ }
+  }
+  box.innerHTML = '<span style="color:var(--err)">服务暂未恢复，请手动启动 Switchboard 后刷新页面。</span>';
 }
 $("#btnSaveSettings").onclick = async () => {
   try {
