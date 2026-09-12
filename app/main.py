@@ -28,6 +28,9 @@ if not STATIC_DIR.exists():
 OPENAI_PATHS = {"chat/completions", "completions", "embeddings", "images/generations",
                 "models", "responses"}
 RATE_WINDOW = defaultdict(deque)  # key_id -> deque[timestamp]
+THROUGHPUT = deque()  # (ts, tokens) 请求事件，滚动保留近 15 分钟（内存态，重启清零）
+THROUGHPUT_LOCK = threading.Lock()
+THROUGHPUT_WINDOW = 15 * 60
 _STATE = {"admin_token": ""}
 _SERVER = None  # uvicorn.Server 实例（用于界面优雅停止服务）
 
@@ -238,6 +241,38 @@ def api_logs(limit: int = 100, offset: int = 0, model: str = "", status: int = 0
 def api_stats(days: float = 1, _=Depends(require_admin)):
     days = min(max(days, 0.04), 365)
     return db.stats_summary(days)
+
+
+@app.get("/api/stats/realtime")
+def api_realtime(_=Depends(require_admin)):
+    # 实时吞吐：RPM/TPM 按最近 60 秒，QPS 按最近 5 秒平均，数据来自内存 15 分钟窗口
+    now = time.time()
+    qps5 = rpm = tpm = 0
+    with THROUGHPUT_LOCK:
+        while THROUGHPUT and now - THROUGHPUT[0][0] > THROUGHPUT_WINDOW:
+            THROUGHPUT.popleft()
+        for ts, tk in reversed(THROUGHPUT):
+            age = now - ts
+            if age <= 5:
+                qps5 += 1
+            if age <= 60:
+                rpm += 1
+                tpm += tk
+            else:
+                break
+    return {"qps": round(qps5 / 5, 1), "rpm": rpm, "tpm": tpm,
+            "window_min": 15, "count_15m": len(THROUGHPUT)}
+
+
+def record_throughput(meta) -> None:
+    m = meta or {}
+    tokens = m.get("total_tokens")
+    if tokens is None:
+        tokens = (m.get("prompt_tokens") or 0) + (m.get("completion_tokens") or 0)
+    with THROUGHPUT_LOCK:
+        THROUGHPUT.append((time.time(), max(int(tokens or 0), 0)))
+        while THROUGHPUT and time.time() - THROUGHPUT[0][0] > THROUGHPUT_WINDOW:
+            THROUGHPUT.popleft()
 
 
 @app.post("/api/logs/clear")
@@ -475,6 +510,7 @@ def _downstream_response(status: int, headers: dict, content: bytes) -> Response
 
 
 def _write_log(provider, key, model, endpoint, status, meta, stream, err_override=None):
+    record_throughput(meta)
     try:
         db.insert_log({
             "provider_id": provider["id"] if provider else None,

@@ -53,14 +53,22 @@
         <div class="card"><div class="num" id="stTotal">-</div><div class="lbl">累计请求数</div></div>
       </div>
       <div class="panel">
+        <h3>实时吞吐 <span class="dim" style="font-size:12px;font-weight:400">近 15 分钟内存窗口 · 每 3 秒自动刷新</span></h3>
+        <div class="tp-grid">
+          <div class="tp-item"><div class="tp-num" id="tpRpm">-</div><div class="tp-lbl">RPM · 每分钟请求</div></div>
+          <div class="tp-item"><div class="tp-num" id="tpTpm">-</div><div class="tp-lbl">TPM · 每分钟 Tokens</div></div>
+          <div class="tp-item"><div class="tp-num" id="tpQps">-</div><div class="tp-lbl">QPS · 每秒请求</div></div>
+        </div>
+      </div>
+      <div class="panel">
         <h3>24 小时请求趋势</h3>
         <canvas id="chart" height="90"></canvas>
       </div>
       <div class="grid2">
-        <div class="panel"><h3>上游用量排名</h3><table id="tblProvStats"></table></div>
-        <div class="panel"><h3>模型用量排名</h3><table id="tblModelStats"></table></div>
+        <div class="panel"><h3>上游用量排名</h3><table id="tblProvStats" class="table"></table></div>
+        <div class="panel"><h3>模型用量排名</h3><table id="tblModelStats" class="table"></table></div>
       </div>
-      <div class="panel"><h3>密钥用量排名</h3><table id="tblKeyStats"></table></div>
+      <div class="panel"><h3>密钥用量排名</h3><table id="tblKeyStats" class="table"></table></div>
     </section>
 
     <!-- 上游服务 -->

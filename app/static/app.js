@@ -228,44 +228,92 @@ async function loadDashboard() {
   $("#stTT").textContent = fmtNum(st.today.total_tokens);
   $("#stTotal").textContent = st.all.total;
 
-  const rows = st.per_provider.map((r) =>
-    `<tr><td>${esc(r.provider_name || "-")}</td><td>${r.c}</td><td>${r.ok}</td>` +
-    `<td>${Math.round(r.avg_lat || 0)}ms</td><td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+  const rankTd = (i) => `<td class="rank-cell">${i + 1}</td>`;
+  const rows = st.per_provider.map((r, i) =>
+    rankTd(i) +
+    `<td>${esc(r.provider_name || "-")}</td><td>${r.c}</td><td>${r.ok}</td>` +
+    `<td>${Math.round(r.avg_lat || 0)}ms</td><td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td>`);
   $("#tblProvStats").innerHTML =
-    `<tr><th>上游</th><th>请求</th><th>成功</th><th>均延迟</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
-    (rows.join("") || `<tr><td colspan="7" class="dim">暂无数据</td></tr>`);
-  const mrows = st.per_model.map((r) =>
-    `<tr><td class="mono">${esc(r.model)}</td><td>${r.c}</td>` +
-    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+    `<tr><th style="width:36px">#</th><th>上游</th><th>请求</th><th>成功</th><th>均延迟</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (rows.map((r) => `<tr>${r}</tr>`).join("") || `<tr><td colspan="8" class="dim">暂无数据</td></tr>`);
+  const mrows = st.per_model.map((r, i) =>
+    rankTd(i) +
+    `<td class="mono">${esc(r.model)}</td><td>${r.c}</td>` +
+    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td>`);
   $("#tblModelStats").innerHTML =
-    `<tr><th>模型</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
-    (mrows.join("") || `<tr><td colspan="5" class="dim">暂无数据</td></tr>`);
-  const krows = st.per_key.map((r) =>
-    `<tr><td>${esc(r.k)}</td><td>${r.c}</td>` +
-    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+    `<tr><th style="width:36px">#</th><th>模型</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (mrows.map((r) => `<tr>${r}</tr>`).join("") || `<tr><td colspan="6" class="dim">暂无数据</td></tr>`);
+  const krows = st.per_key.map((r, i) =>
+    rankTd(i) +
+    `<td>${esc(r.k)}</td><td>${r.c}</td>` +
+    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td>`);
   $("#tblKeyStats").innerHTML =
-    `<tr><th>密钥</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
-    (krows.join("") || `<tr><td colspan="5" class="dim">暂无数据</td></tr>`);
+    `<tr><th style="width:36px">#</th><th>密钥</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (krows.map((r) => `<tr>${r}</tr>`).join("") || `<tr><td colspan="6" class="dim">暂无数据</td></tr>`);
   drawChart(st.hourly);
+  loadRealtime();
+}
+
+// ---- 实时吞吐（近 15 分钟内存窗口，每 3 秒轮询） ----
+async function loadRealtime() {
+  try {
+    const r = await api("/api/stats/realtime");
+    $("#tpRpm").textContent = r.rpm;
+    $("#tpTpm").textContent = fmtNum(r.tpm);
+    $("#tpQps").textContent = r.qps;
+  } catch (e) { /* 轮询失败保留旧值 */ }
 }
 
 function drawChart(hourly) {
   const c = $("#chart");
   const ctx = c.getContext("2d");
-  const W = (c.width = c.offsetWidth * 2), H = (c.height = 180);
+  const W = (c.width = c.offsetWidth * 2), H = (c.height = 190);
   ctx.clearRect(0, 0, W, H);
   const buckets = new Array(24).fill(0);
   hourly.forEach((h) => { if (h.hour >= 0 && h.hour < 24) buckets[h.hour] = h.count; });
   const max = Math.max(...buckets, 1);
-  const bw = W / 24;
-  for (let i = 0; i < 24; i++) {
-    const bh = (buckets[i] / max) * (H - 30);
-    ctx.fillStyle = "#1a73e8";
-    ctx.fillRect(i * bw + 4, H - 20 - bh, bw - 8, bh);
-    ctx.fillStyle = "#5f6368";
-    ctx.font = "18px sans-serif";
-    if (i % 4 === 0) ctx.fillText(`${23 - i}h`, i * bw + 4, H - 2);
+  const padL = 14, padR = 10, padT = 30, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const bw = plotW / 24;
+
+  // 水平网格线 + 峰值标注
+  ctx.strokeStyle = "#f1f3f4";
+  ctx.lineWidth = 1;
+  ctx.font = "18px sans-serif";
+  for (let g = 0; g <= 3; g++) {
+    const y = padT + (plotH * g) / 3;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = "#9aa0a6";
+    ctx.textAlign = g % 2 ? "left" : "left";
+    ctx.fillText(String(Math.round(max * (3 - g) / 3)), padL - 2, y - 5);
   }
+
+  // 渐变圆角柱
+  const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+  grad.addColorStop(0, "#4285f4");
+  grad.addColorStop(1, "#aecbfa");
+  ctx.fillStyle = grad;
+  for (let i = 0; i < 24; i++) {
+    const bh = (buckets[i] / max) * plotH;
+    const x = padL + i * bw + bw * 0.2, w = bw * 0.6;
+    const y = padT + plotH - bh;
+    if (bh <= 0) continue;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, bh, [7, 7, 0, 0]);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x, y, w, bh);
+    }
+  }
+
+  // X 轴时间标签（每 4 小时一个）
+  ctx.fillStyle = "#5f6368";
+  ctx.textAlign = "center";
+  for (let i = 0; i < 24; i += 4) {
+    ctx.fillText(`${23 - i}h`, padL + i * bw + bw / 2, H - 10);
+  }
+  ctx.textAlign = "left";
 }
 
 // ---- providers ----
@@ -598,6 +646,9 @@ async function boot() {
   $("#tokenGate").classList.add("hidden");
   $("#app").classList.remove("hidden");
   await loadDashboard();
+  setInterval(() => {
+    if ($("#page-dashboard").classList.contains("active")) loadRealtime();
+  }, 3000);
 }
 
 (async () => {
