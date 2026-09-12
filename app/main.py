@@ -1,8 +1,5 @@
-"""LLM Gateway 主程序：管理 API + 统一代理出口 + 静态管理界面。
-
-启动方式：
-    python -m app.main [--host 127.0.0.1] [--port 8688]
-"""
+# LLM Gateway 主程序：管理 API + /v1 代理出口 + 管理界面
+# 启动: python -m app.main [--host 127.0.0.1] [--port 8688]
 import argparse
 import asyncio
 import json
@@ -35,7 +32,7 @@ _STATE = {"admin_token": ""}
 _SERVER = None  # uvicorn.Server 实例（用于界面优雅停止服务）
 
 
-# ---------------------------------------------------------------- helpers
+# ---- helpers ----
 
 def require_admin(request: Request) -> None:
     token = request.headers.get("X-Admin-Token", "")
@@ -67,7 +64,7 @@ def mask_key(k: str) -> str:
     return k if len(k) <= 10 else k[:6] + "..." + k[-4:]
 
 
-# ---------------------------------------------------------------- lifespan
+# ---- lifespan ----
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -102,7 +99,7 @@ async def lifespan(app: FastAPI):
 
 
 def seed_providers() -> None:
-    """首次启动预置常见上游模板（默认禁用，用户填入密钥后启用）。"""
+    # 首次启动预置常见上游模板（默认禁用，用户填 key 后启用）
     templates = [
         {"name": "OpenAI", "base_url": "https://api.openai.com",
          "models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o3-mini"]},
@@ -123,7 +120,7 @@ def seed_providers() -> None:
 app = FastAPI(title="LLM Gateway", version=__version__, lifespan=lifespan)
 
 
-# ---------------------------------------------------------------- admin api
+# ---- admin api ----
 
 @app.get("/api/status")
 def api_status(_=Depends(require_admin)):
@@ -276,7 +273,7 @@ def api_put_settings(s: schemas.SettingsIn, _=Depends(require_admin)):
 
 @app.post("/api/shutdown")
 async def api_shutdown(_=Depends(require_admin)):
-    """优雅停止网关服务：先返回响应，0.5 秒后关闭 uvicorn。"""
+    # 先回响应再关，不然客户端收不到结果
 
     async def _later():
         await asyncio.sleep(0.5)
@@ -291,7 +288,7 @@ async def api_shutdown(_=Depends(require_admin)):
 
 @app.post("/api/test")
 async def api_test_model(t: schemas.TestIn, _=Depends(require_admin)):
-    """管理员直接调用指定上游进行模型对话测试（不经过本地密钥与配额）。"""
+    # 管理员直接用上游密钥测模型，不过本地密钥和配额
     p = db.get_provider(t.provider_id)
     if not p:
         raise HTTPException(404, "上游不存在")
@@ -343,7 +340,7 @@ async def _test_stream(provider, body):
                 ensure_ascii=False) + "\n\n").encode()
 
 
-# ---------------------------------------------------------------- proxy
+# ---- proxy ----
 
 def _extract_model(body: bytes) -> str:
     try:
@@ -426,8 +423,8 @@ async def openai_proxy(request: Request, path: str):
 
 
 def _ordered_candidates(model: str) -> list:
-    """选路：优先级分组（小=优先）→ 组内过滤熔断上游后做平滑加权轮询；
-    整组全部熔断时仍纳入该组作为兜底尝试（即半开试探）。"""
+    # 优先级分组 -> 组内过滤熔断的上游再做加权轮询；
+    # 整组都熔断时照样返回该组，相当于半开兜底
     cands = db.select_providers_for_model(model)
     groups: dict[int, list] = {}
     for p in cands:
@@ -469,12 +466,12 @@ def _write_log(provider, key, model, endpoint, status, meta, stream, err_overrid
             "api_key_name": key.get("name") if key else None,
             "stream": stream,
         })
-    except Exception:  # noqa: BLE001 - 日志失败不影响主流程
+    except Exception:  # noqa: BLE001 日志挂了不影响请求
         pass
 
 
 async def _do_stream(provider, endpoint, body, key, model):
-    """执行流式转发；上游连接失败返回 None 以触发故障转移。"""
+    # 流式转发；返回 None 表示该上游连不上，换下一个
 
     async def gen():
         sent = False
@@ -520,7 +517,7 @@ async def _do_stream(provider, endpoint, body, key, model):
 
 
 async def _aggregate_models():
-    """聚合所有启用上游的模型列表（OpenAI 格式）。"""
+    # 聚合所有启用上游的模型，OpenAI 格式
     seen, data = set(), []
     for p in db.list_providers(only_enabled=True):
         r = await proxy.check_provider(p)
@@ -539,7 +536,7 @@ async def _aggregate_models():
     return {"object": "list", "data": data}
 
 
-# ---------------------------------------------------------------- static ui
+# ---- static ----
 
 @app.get("/")
 def index():
@@ -549,7 +546,7 @@ def index():
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-# ---------------------------------------------------------------- entry
+# ---- entry ----
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="LLM Gateway 本地大模型 API 网关")

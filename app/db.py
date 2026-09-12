@@ -1,4 +1,4 @@
-"""SQLite 数据层：上游服务、API 密钥、请求日志、系统设置。"""
+# SQLite 存储：上游、密钥、请求日志、设置
 import json
 import os
 import sqlite3
@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model);
 
 
 def data_dir() -> Path:
-    """返回数据目录（Windows: %LOCALAPPDATA%\\LLMGateway，其他: ~/.llmgateway）。"""
+    # Windows 用 %LOCALAPPDATA%，其他平台放 home 目录
     override = os.environ.get("LLM_GATEWAY_HOME")
     if override:
         d = Path(override)
@@ -205,7 +205,7 @@ def set_provider_health(pid: int, status: str, latency_ms) -> None:
 
 
 def select_providers_for_model(model: str) -> list:
-    """返回支持指定模型且已启用的上游，按优先级排序。"""
+    # 支持该模型的启用上游，按优先级排序（"*" 通配）
     cands = []
     for p in list_providers(only_enabled=True):
         models = p["models"] or []
@@ -339,8 +339,7 @@ def cleanup_old_logs(days: int) -> int:
 # ---------- stats ----------
 
 def stats_summary(days: float = 1.0) -> dict:
-    conn = get_db()
-    db = conn
+    db = get_db()
     now = time.time()
     since = now - days * 86400
 

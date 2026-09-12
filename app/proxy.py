@@ -1,4 +1,4 @@
-"""网关核心：上游健康检查与请求转发（含流式透传与故障转移）。"""
+# 转发引擎：健康检查、负载均衡、熔断、SSE 流式透传
 import json
 import time
 
@@ -35,7 +35,7 @@ def auth_headers(provider: dict, extra: dict | None = None) -> dict:
 
 
 def join_url(base: str, endpoint: str) -> str:
-    """拼接上游 URL；base 以 /v1 结尾时避免路径重复（如 https://token.sensenova.cn/v1）。"""
+    # base 可能带 /v1 结尾（如 token.sensenova.cn/v1），避免拼出 /v1/v1/...
     base = base.rstrip("/")
     if base.endswith("/v1") and endpoint.startswith("/v1"):
         return base + endpoint[3:]
@@ -43,9 +43,8 @@ def join_url(base: str, endpoint: str) -> str:
 
 
 class CircuitBreaker:
-    """熔断器：同一上游连续失败达到阈值后熔断，冷却期内不再参与选路；
-    冷却结束后自动半开，试探成功即恢复。
-    阈值与冷却秒数从系统设置动态读取（circuit_threshold / circuit_cooldown）。"""
+    # 连续失败达到阈值就熔断该上游，冷却期内不参与选路，
+    # 冷却后自动半开试探，成功即恢复。阈值/秒数读设置，改完即生效。
 
     def __init__(self):
         self._state: dict[int, dict] = {}
@@ -84,13 +83,13 @@ CIRCUIT = CircuitBreaker()
 
 
 class WeightedPicker:
-    """平滑加权轮询：同优先级上游按 weight 均匀分散调度（如权重 2:1 时序列为 A B A）。"""
+    # 平滑加权轮询：权重 2:1 时调度序列是 A B A，不会连续打到同一台
 
     def __init__(self):
         self._current: dict[int, int] = {}
 
     def order(self, providers: list[dict]) -> list[dict]:
-        """返回本轮尝试顺序：首位为平滑轮询选中的上游，其余按权重降序作为故障转移候补。"""
+        # 首位是本轮选中的，其余按权重降序做故障转移候补
         if not providers:
             return []
         total = sum(max(p.get("weight") or 1, 1) for p in providers)
@@ -111,7 +110,7 @@ PICKER = WeightedPicker()
 
 
 async def check_provider(provider: dict) -> dict:
-    """对上游执行健康检查：优先 GET /v1/models，失败则 HEAD base_url。"""
+    # GET /v1/models 探测，顺便把模型列表带回来
     url = join_url(provider["base_url"], "/v1/models")
     t0 = time.time()
     try:
@@ -133,7 +132,7 @@ async def check_provider(provider: dict) -> dict:
         db.set_provider_health(provider["id"], "unhealthy", latency)
         CIRCUIT.record_failure(provider["id"])
         return {"ok": False, "latency_ms": latency, "error": f"HTTP {r.status_code}"}
-    except Exception as e:  # noqa: BLE001 - 健康检查需捕获所有网络异常
+    except Exception as e:  # noqa: BLE001
         latency = round((time.time() - t0) * 1000, 1)
         db.set_provider_health(provider["id"], "unhealthy", latency)
         CIRCUIT.record_failure(provider["id"])
@@ -152,7 +151,7 @@ def _usage_of(payload: dict) -> dict:
 
 async def forward_once(provider: dict, endpoint: str, body: bytes, stream: bool,
                        extra_headers: dict | None = None):
-    """单次转发。返回 (status, headers, content, usage_dict, error)。"""
+    # 返回 (status, headers, content, meta, error)
     url = join_url(provider["base_url"], endpoint)
     headers = auth_headers(provider, extra_headers)
     t0 = time.time()
@@ -177,7 +176,7 @@ async def forward_once(provider: dict, endpoint: str, body: bytes, stream: bool,
 
 async def forward_stream(provider: dict, endpoint: str, body: bytes,
                          extra_headers: dict | None = None):
-    """流式转发，异步生成 SSE 字节块。usage 通过最后一行收集。"""
+    # SSE 透传；每步 yield (status, headers, chunk, meta, error)，五元组里只有一个有值
     url = join_url(provider["base_url"], endpoint)
     headers = auth_headers(provider, extra_headers)
     t0 = time.time()
@@ -209,7 +208,7 @@ async def forward_stream(provider: dict, endpoint: str, body: bytes,
 
 
 def _extract_usage_from_chunk(chunk: bytes, acc: dict) -> dict:
-    """从 SSE 块中尽力提取 usage（OpenAI 流末尾带 usage 字段）。"""
+    # OpenAI 流末尾会带 usage 字段，顺路抠出来
     try:
         text = chunk.decode("utf-8", "replace")
     except UnicodeDecodeError:

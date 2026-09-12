@@ -1,4 +1,4 @@
-/* LLM Gateway 管理控制台前端逻辑 */
+// 管理控制台前端逻辑
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
@@ -46,7 +46,7 @@ function fmtTs(ts) {
   return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/* ---------------- token gate ---------------- */
+// ---- token gate ----
 function showTokenGate() {
   $("#tokenGate").classList.remove("hidden");
   $("#app").classList.add("hidden");
@@ -64,7 +64,7 @@ $("#tokenBtn").onclick = async () => {
 };
 $("#tokenInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#tokenBtn").click(); });
 
-/* ---------------- navigation ---------------- */
+// ---- navigation ----
 $$(".sidebar nav a").forEach((a) => {
   a.onclick = () => {
     $$(".sidebar nav a").forEach((x) => x.classList.remove("active"));
@@ -84,7 +84,7 @@ function loadPage(page) {
   if (page === "settings") loadSettings();
 }
 
-/* ---------------- model test ---------------- */
+// ---- model test ----
 let testProviders = [];
 
 async function loadTest() {
@@ -204,7 +204,7 @@ $("#tSend").onclick = async () => {
   }
 };
 
-/* ---------------- dashboard ---------------- */
+// ---- dashboard ----
 let dashDays = 1;
 
 $("#periodBtns").addEventListener("click", (e) => {
@@ -268,7 +268,7 @@ function drawChart(hourly) {
   }
 }
 
-/* ---------------- providers ---------------- */
+// ---- providers ----
 const STATUS_BADGE = {
   healthy: '<span class="dot ok"></span>正常',
   unhealthy: '<span class="dot err"></span>异常',
@@ -373,7 +373,7 @@ $("#btnSaveProv").onclick = async () => {
   } catch (e) { toast(e.message); }
 };
 
-/* ---------------- api keys ---------------- */
+// ---- api keys ----
 async function loadKeys() {
   const s = await api("/api/settings");
   $("#gwEndpoint").textContent = `http://${s.listen_host}:${s.listen_port}/v1`;
@@ -414,7 +414,7 @@ $("#btnSaveKey").onclick = async () => {
 $("#btnCloseKeyResult").onclick = () => $("#keyResultModal").classList.add("hidden");
 $("#btnCopyNewKey").onclick = () => { navigator.clipboard.writeText($("#newKeyValue").value); toast("已复制"); };
 
-/* ---------------- logs ---------------- */
+// ---- logs ----
 async function loadLogs() {
   const q = new URLSearchParams({ limit: logLimit, offset: logPage * logLimit });
   const m = $("#logModel").value.trim();
@@ -454,7 +454,7 @@ $("#btnClearLog").onclick = async () => {
   logPage = 0; loadLogs();
 };
 
-/* ---------------- settings ---------------- */
+// ---- settings ----
 async function loadSettings() {
   const [s, v] = await Promise.all([api("/api/settings"), api("/api/status")]);
   $("#setHost").value = s.listen_host;
@@ -494,7 +494,7 @@ $("#btnShutdown").onclick = async () => {
   }, 800);
 };
 
-/* ---------------- boot ---------------- */
+// ---- boot ----
 async function boot() {
   $("#tokenGate").classList.add("hidden");
   $("#app").classList.remove("hidden");
