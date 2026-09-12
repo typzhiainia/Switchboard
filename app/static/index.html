@@ -37,12 +37,19 @@
   <main class="content">
     <!-- 仪表盘 -->
     <section id="page-dashboard" class="page active">
-      <h2>仪表盘</h2>
+      <div class="page-head"><h2>仪表盘</h2>
+        <div class="btn-group" id="periodBtns">
+          <button class="small period active" data-days="1">24小时</button>
+          <button class="small period" data-days="7">7天</button>
+          <button class="small period" data-days="30">30天</button>
+        </div>
+      </div>
       <div class="cards">
-        <div class="card"><div class="num" id="stToday">-</div><div class="lbl">24h 请求数</div></div>
-        <div class="card"><div class="num" id="stSucc">-</div><div class="lbl">24h 成功率</div></div>
+        <div class="card"><div class="num" id="stToday">-</div><div class="lbl">请求数</div></div>
+        <div class="card"><div class="num" id="stSucc">-</div><div class="lbl">成功率</div></div>
         <div class="card"><div class="num" id="stLat">-</div><div class="lbl">平均延迟 (ms)</div></div>
         <div class="card"><div class="num" id="stTok">-</div><div class="lbl">平均 Tokens</div></div>
+        <div class="card"><div class="num" id="stTT">-</div><div class="lbl">总 Tokens</div></div>
         <div class="card"><div class="num" id="stTotal">-</div><div class="lbl">累计请求数</div></div>
       </div>
       <div class="panel">
@@ -50,9 +57,10 @@
         <canvas id="chart" height="90"></canvas>
       </div>
       <div class="grid2">
-        <div class="panel"><h3>上游调用分布 (24h)</h3><table id="tblProvStats"></table></div>
-        <div class="panel"><h3>热门模型 (24h)</h3><table id="tblModelStats"></table></div>
+        <div class="panel"><h3>上游用量排名</h3><table id="tblProvStats"></table></div>
+        <div class="panel"><h3>模型用量排名</h3><table id="tblModelStats"></table></div>
       </div>
+      <div class="panel"><h3>密钥用量排名</h3><table id="tblKeyStats"></table></div>
     </section>
 
     <!-- 上游服务 -->

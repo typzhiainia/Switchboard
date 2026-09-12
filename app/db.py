@@ -338,38 +338,60 @@ def cleanup_old_logs(days: int) -> int:
 
 # ---------- stats ----------
 
-def stats_summary() -> dict:
+def stats_summary(days: float = 1.0) -> dict:
     conn = get_db()
     db = conn
     now = time.time()
-    def agg(since: float) -> dict:
+    since = now - days * 86400
+
+    def agg(s: float) -> dict:
         row = db.execute(
             "SELECT COUNT(*) c, "
             "SUM(CASE WHEN status>=200 AND status<300 THEN 1 ELSE 0 END) ok, "
-            "AVG(latency_ms) avg_lat, AVG(total_tokens) avg_tok "
+            "AVG(latency_ms) avg_lat, AVG(total_tokens) avg_tok, "
+            "SUM(COALESCE(prompt_tokens,0)) pt, SUM(COALESCE(completion_tokens,0)) ct, "
+            "SUM(COALESCE(total_tokens,0)) tt "
             "FROM logs WHERE ts>=?",
-            (since,),
+            (s,),
         ).fetchone()
         return {
             "total": row["c"] or 0,
             "success": row["ok"] or 0,
             "avg_latency_ms": round(row["avg_lat"] or 0, 1),
             "avg_tokens": round(row["avg_tok"] or 0, 1),
+            "prompt_tokens": row["pt"] or 0,
+            "completion_tokens": row["ct"] or 0,
+            "total_tokens": row["tt"] or 0,
         }
 
     per_provider = [
         dict(r) for r in db.execute(
             "SELECT provider_name, COUNT(*) c, "
             "SUM(CASE WHEN status>=200 AND status<300 THEN 1 ELSE 0 END) ok, "
-            "AVG(latency_ms) avg_lat "
-            "FROM logs WHERE ts>=? GROUP BY provider_name ORDER BY c DESC",
-            (now - 86400,),
+            "AVG(latency_ms) avg_lat, "
+            "SUM(COALESCE(prompt_tokens,0)) pt, SUM(COALESCE(completion_tokens,0)) ct, "
+            "SUM(COALESCE(total_tokens,0)) tt "
+            "FROM logs WHERE ts>=? GROUP BY provider_name ORDER BY tt DESC, c DESC",
+            (since,),
         ).fetchall()
     ]
     per_model = [
         dict(r) for r in db.execute(
-            "SELECT model, COUNT(*) c FROM logs WHERE ts>=? GROUP BY model ORDER BY c DESC LIMIT 10",
-            (now - 86400,),
+            "SELECT model, COUNT(*) c, "
+            "SUM(COALESCE(prompt_tokens,0)) pt, SUM(COALESCE(completion_tokens,0)) ct, "
+            "SUM(COALESCE(total_tokens,0)) tt "
+            "FROM logs WHERE ts>=? GROUP BY model ORDER BY tt DESC, c DESC LIMIT 10",
+            (since,),
+        ).fetchall()
+    ]
+    per_key = [
+        dict(r) for r in db.execute(
+            "SELECT COALESCE(NULLIF(api_key_name,''),'(未命名)') k, COUNT(*) c, "
+            "SUM(COALESCE(prompt_tokens,0)) pt, SUM(COALESCE(completion_tokens,0)) ct, "
+            "SUM(COALESCE(total_tokens,0)) tt "
+            "FROM logs WHERE ts>=? AND api_key_id IS NOT NULL "
+            "GROUP BY api_key_id ORDER BY tt DESC, c DESC LIMIT 10",
+            (since,),
         ).fetchall()
     ]
     hourly = [
@@ -381,9 +403,10 @@ def stats_summary() -> dict:
         ).fetchall()
     ]
     return {
-        "today": agg(now - 86400),
+        "today": agg(since),
         "all": agg(0),
         "per_provider": per_provider,
         "per_model": per_model,
+        "per_key": per_key,
         "hourly": hourly,
     }

@@ -238,8 +238,9 @@ def api_logs(limit: int = 100, offset: int = 0, model: str = "", status: int = 0
 
 
 @app.get("/api/stats")
-def api_stats(_=Depends(require_admin)):
-    return db.stats_summary()
+def api_stats(days: float = 1, _=Depends(require_admin)):
+    days = min(max(days, 0.04), 365)
+    return db.stats_summary(days)
 
 
 @app.post("/api/logs/clear")

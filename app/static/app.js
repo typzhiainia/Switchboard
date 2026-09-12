@@ -205,22 +205,47 @@ $("#tSend").onclick = async () => {
 };
 
 /* ---------------- dashboard ---------------- */
+let dashDays = 1;
+
+$("#periodBtns").addEventListener("click", (e) => {
+  const btn = e.target.closest(".period");
+  if (!btn) return;
+  $$("#periodBtns .period").forEach((b) => b.classList.remove("active"));
+  btn.classList.add("active");
+  dashDays = +btn.dataset.days;
+  loadDashboard();
+});
+
+const fmtNum = (n) => (n == null ? "-" : n >= 10000 ? (n / 1000).toFixed(1) + "k" : String(n));
+
 async function loadDashboard() {
-  const [st, ver] = await Promise.all([api("/api/stats"), api("/api/status")]);
+  const [st, ver] = await Promise.all([api("/api/stats?days=" + dashDays), api("/api/status")]);
   $("#ver").textContent = "v" + ver.version;
   $("#stToday").textContent = st.today.total;
   $("#stSucc").textContent = st.today.total ? Math.round((st.today.success / st.today.total) * 100) + "%" : "-";
   $("#stLat").textContent = st.today.avg_latency_ms || "-";
   $("#stTok").textContent = st.today.avg_tokens || "-";
+  $("#stTT").textContent = fmtNum(st.today.total_tokens);
   $("#stTotal").textContent = st.all.total;
 
   const rows = st.per_provider.map((r) =>
-    `<tr><td>${esc(r.provider_name || "-")}</td><td>${r.c}</td><td>${r.ok}</td><td>${Math.round(r.avg_lat || 0)}ms</td></tr>`);
-  $("#tblProvStats").innerHTML = `<tr><th>上游</th><th>请求</th><th>成功</th><th>均延迟</th></tr>` +
-    (rows.join("") || `<tr><td colspan="4" class="dim">暂无数据</td></tr>`);
-  const mrows = st.per_model.map((r) => `<tr><td class="mono">${esc(r.model)}</td><td>${r.c}</td></tr>`);
-  $("#tblModelStats").innerHTML = `<tr><th>模型</th><th>请求</th></tr>` +
-    (mrows.join("") || `<tr><td colspan="2" class="dim">暂无数据</td></tr>`);
+    `<tr><td>${esc(r.provider_name || "-")}</td><td>${r.c}</td><td>${r.ok}</td>` +
+    `<td>${Math.round(r.avg_lat || 0)}ms</td><td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+  $("#tblProvStats").innerHTML =
+    `<tr><th>上游</th><th>请求</th><th>成功</th><th>均延迟</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (rows.join("") || `<tr><td colspan="7" class="dim">暂无数据</td></tr>`);
+  const mrows = st.per_model.map((r) =>
+    `<tr><td class="mono">${esc(r.model)}</td><td>${r.c}</td>` +
+    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+  $("#tblModelStats").innerHTML =
+    `<tr><th>模型</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (mrows.join("") || `<tr><td colspan="5" class="dim">暂无数据</td></tr>`);
+  const krows = st.per_key.map((r) =>
+    `<tr><td>${esc(r.k)}</td><td>${r.c}</td>` +
+    `<td>${fmtNum(r.pt)}</td><td>${fmtNum(r.ct)}</td><td><b>${fmtNum(r.tt)}</b></td></tr>`);
+  $("#tblKeyStats").innerHTML =
+    `<tr><th>密钥</th><th>请求</th><th>Prompt</th><th>Completion</th><th>总Tokens</th></tr>` +
+    (krows.join("") || `<tr><td colspan="5" class="dim">暂无数据</td></tr>`);
   drawChart(st.hourly);
 }
 
