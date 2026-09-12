@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS throughput (
+  minute INTEGER PRIMARY KEY,   -- 分钟起点（unix 秒，整分钟对齐）
+  requests INTEGER NOT NULL DEFAULT 0,
+  tokens INTEGER NOT NULL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts);
 CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model);
 """
@@ -332,6 +337,36 @@ def clear_logs() -> None:
 def cleanup_old_logs(days: int) -> int:
     conn = get_db()
     cur = conn.execute("DELETE FROM logs WHERE ts < ?", (time.time() - days * 86400,))
+    conn.commit()
+    return cur.rowcount
+
+
+# ---------- throughput（分钟级持久化吞吐） ----------
+
+def upsert_throughput(minute: int, requests: int, tokens: int) -> None:
+    # 写绝对值而非累加：同一分钟可能被多次刷新，后写覆盖先写
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO throughput(minute,requests,tokens) VALUES(?,?,?) "
+        "ON CONFLICT(minute) DO UPDATE SET requests=excluded.requests, tokens=excluded.tokens",
+        (int(minute), int(requests), int(tokens)),
+    )
+    conn.commit()
+
+
+def query_throughput(since_minute: int) -> list:
+    return [
+        {"m": r["minute"], "r": r["requests"], "t": r["tokens"]}
+        for r in get_db().execute(
+            "SELECT minute, requests, tokens FROM throughput WHERE minute>=? ORDER BY minute",
+            (int(since_minute),),
+        ).fetchall()
+    ]
+
+
+def cleanup_old_throughput(days: int) -> int:
+    conn = get_db()
+    cur = conn.execute("DELETE FROM throughput WHERE minute < ?", (time.time() - days * 86400,))
     conn.commit()
     return cur.rowcount
 

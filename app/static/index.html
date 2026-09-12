@@ -61,6 +61,21 @@
         </div>
       </div>
       <div class="panel">
+        <h3>吞吐趋势 <span class="dim" style="font-size:12px;font-weight:400">分钟级 · 持久化保留 30 天</span></h3>
+        <div class="chart-bar">
+          <div class="seg" id="tpMetricSeg">
+            <button class="active" data-metric="r">请求</button>
+            <button data-metric="t">Tokens</button>
+          </div>
+          <div class="seg" id="tpRangeSeg">
+            <button class="active" data-min="60">1 小时</button>
+            <button data-min="360">6 小时</button>
+            <button data-min="1440">24 小时</button>
+          </div>
+        </div>
+        <canvas id="tpChart" height="90"></canvas>
+      </div>
+      <div class="panel">
         <h3>24 小时请求趋势</h3>
         <canvas id="chart" height="90"></canvas>
       </div>

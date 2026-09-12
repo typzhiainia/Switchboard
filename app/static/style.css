@@ -138,6 +138,12 @@ button.small { padding: 4px 10px; font-size: 12px; }
 .pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 14px; color: var(--dim); }
 
 /* 实时吞吐 */
+.chart-bar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.seg { display: inline-flex; background: #f1f3f4; border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: none; background: transparent; padding: 4px 12px; font-size: 12px;
+  color: var(--dim); border-radius: 6px; }
+.seg button.active { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(60, 64, 67, .18); }
+#tpChart { width: 100%; display: block; }
 .tp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .tp-item { background: #f8f9fa; border: 1px solid var(--line); border-radius: 10px;
   padding: 16px 12px; text-align: center; }

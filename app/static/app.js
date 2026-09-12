@@ -252,6 +252,7 @@ async function loadDashboard() {
     (krows.map((r) => `<tr>${r}</tr>`).join("") || `<tr><td colspan="6" class="dim">暂无数据</td></tr>`);
   drawChart(st.hourly);
   loadRealtime();
+  loadThroughput();
 }
 
 // ---- 实时吞吐（近 15 分钟内存窗口，每 3 秒轮询） ----
@@ -263,6 +264,88 @@ async function loadRealtime() {
     $("#tpQps").textContent = r.qps;
   } catch (e) { /* 轮询失败保留旧值 */ }
 }
+
+// ---- 吞吐趋势（分钟级持久化） ----
+let tpMinutes = 60, tpMetric = "r";
+
+async function loadThroughput() {
+  try {
+    const r = await api(`/api/stats/throughput?minutes=${tpMinutes}`);
+    drawThroughput(r.items || []);
+  } catch (e) { /* 轮询失败保留旧图 */ }
+}
+
+function drawThroughput(items) {
+  const c = $("#tpChart");
+  const ctx = c.getContext("2d");
+  const W = (c.width = c.offsetWidth * 2), H = (c.height = 190);
+  ctx.clearRect(0, 0, W, H);
+  if (!items.length) {
+    ctx.fillStyle = "#9aa0a6"; ctx.font = "18px sans-serif";
+    ctx.fillText("暂无数据（运行几分钟后出现）", 16, 40);
+    return;
+  }
+  // 降采样到不超过 180 个柱，避免 24 小时视图过密
+  const size = Math.max(1, Math.ceil(items.length / 180));
+  const pts = [];
+  for (let i = 0; i < items.length; i += size) {
+    let v = 0;
+    for (let j = i; j < Math.min(i + size, items.length); j++) {
+      v += tpMetric === "r" ? items[j].r : items[j].t;
+    }
+    pts.push({ m: items[i].m, v });
+  }
+  const max = Math.max(...pts.map((p) => p.v), 1);
+  const padL = 14, padR = 10, padT = 30, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const bw = plotW / pts.length;
+
+  ctx.strokeStyle = "#f1f3f4"; ctx.lineWidth = 1; ctx.font = "18px sans-serif";
+  for (let g = 0; g <= 3; g++) {
+    const y = padT + (plotH * g) / 3;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = "#9aa0a6"; ctx.textAlign = "left";
+    ctx.fillText(fmtNum(Math.round((max * (3 - g)) / 3)), padL - 2, y - 5);
+  }
+
+  const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+  if (tpMetric === "r") { grad.addColorStop(0, "#4285f4"); grad.addColorStop(1, "#aecbfa"); }
+  else { grad.addColorStop(0, "#f9ab00"); grad.addColorStop(1, "#fde293"); }
+  ctx.fillStyle = grad;
+  for (let i = 0; i < pts.length; i++) {
+    const bh = (pts[i].v / max) * plotH;
+    if (bh <= 0) continue;
+    const x = padL + i * bw + bw * 0.2, w = bw * 0.6;
+    const y = padT + plotH - bh;
+    if (ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(x, y, w, bh, [7, 7, 0, 0]); ctx.fill();
+    } else {
+      ctx.fillRect(x, y, w, bh);
+    }
+  }
+
+  // X 轴时间标签（均匀取 6 个）
+  ctx.fillStyle = "#5f6368"; ctx.textAlign = "center";
+  const stepLbl = Math.max(1, Math.floor(pts.length / 6));
+  for (let i = 0; i < pts.length; i += stepLbl) {
+    const d = new Date(pts[i].m * 1000);
+    const lbl = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    ctx.fillText(lbl, padL + i * bw + bw / 2, H - 10);
+  }
+  ctx.textAlign = "left";
+}
+
+function segBind(segId, onPick) {
+  $(segId).addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    $$(segId + " button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    onPick(btn.dataset);
+  });
+}
+segBind("#tpMetricSeg", (d) => { tpMetric = d.metric; loadThroughput(); });
+segBind("#tpRangeSeg", (d) => { tpMinutes = +d.min; loadThroughput(); });
 
 function drawChart(hourly) {
   const c = $("#chart");
@@ -646,8 +729,11 @@ async function boot() {
   $("#tokenGate").classList.add("hidden");
   $("#app").classList.remove("hidden");
   await loadDashboard();
+  let tpTick = 0;
   setInterval(() => {
-    if ($("#page-dashboard").classList.contains("active")) loadRealtime();
+    if (!$("#page-dashboard").classList.contains("active")) return;
+    loadRealtime();
+    if (++tpTick % 4 === 0) loadThroughput();  // 吞吐趋势约每 12 秒刷新
   }, 3000);
 }
 

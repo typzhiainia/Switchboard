@@ -92,13 +92,29 @@ async def lifespan(app: FastAPI):
             days = int(db.get_setting("log_retention_days", "30") or 30)
             try:
                 db.cleanup_old_logs(max(days, 1))
+                db.cleanup_old_throughput(30)  # 分钟级吞吐保留 30 天
             except Exception:  # noqa: BLE001
                 pass
             await asyncio.sleep(3600)
 
+    async def throughput_flusher():
+        # 每 30 秒把内存窗口聚合落盘；分钟在窗口内停留 15 分钟，会被刷新约 30 次
+        while True:
+            try:
+                flush_throughput()
+            except Exception:  # noqa: BLE001
+                pass
+            await asyncio.sleep(30)
+
     task = asyncio.create_task(janitor())
+    tp_task = asyncio.create_task(throughput_flusher())
     yield
     task.cancel()
+    tp_task.cancel()
+    try:
+        flush_throughput()  # 停机前最后冲刷一次，减少数据丢失
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def seed_providers() -> None:
@@ -264,6 +280,14 @@ def api_realtime(_=Depends(require_admin)):
             "window_min": 15, "count_15m": len(THROUGHPUT)}
 
 
+@app.get("/api/stats/throughput")
+def api_throughput(minutes: int = 60, _=Depends(require_admin)):
+    # 分钟级历史吞吐曲线，最长取近 24 小时（1440 个点）
+    minutes = min(max(minutes, 1), 24 * 60)
+    since = int((time.time() - minutes * 60) // 60) * 60
+    return {"items": db.query_throughput(since)}
+
+
 def record_throughput(meta) -> None:
     m = meta or {}
     tokens = m.get("total_tokens")
@@ -273,6 +297,22 @@ def record_throughput(meta) -> None:
         THROUGHPUT.append((time.time(), max(int(tokens or 0), 0)))
         while THROUGHPUT and time.time() - THROUGHPUT[0][0] > THROUGHPUT_WINDOW:
             THROUGHPUT.popleft()
+
+
+def flush_throughput() -> None:
+    # 把内存窗口聚合成分钟桶写入数据库（绝对值覆盖，可安全重复调用）
+    now = time.time()
+    buckets: dict[int, list] = {}
+    with THROUGHPUT_LOCK:
+        while THROUGHPUT and now - THROUGHPUT[0][0] > THROUGHPUT_WINDOW:
+            THROUGHPUT.popleft()
+        for ts, tk in THROUGHPUT:
+            minute = int(ts // 60) * 60
+            b = buckets.setdefault(minute, [0, 0])
+            b[0] += 1
+            b[1] += tk
+    for minute, (req, tok) in buckets.items():
+        db.upsert_throughput(minute, req, tok)
 
 
 @app.post("/api/logs/clear")
