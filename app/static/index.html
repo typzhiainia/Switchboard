@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Gateway 管理控制台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="tokenGate" class="token-gate hidden">
+  <div class="token-box">
+    <h1>LLM Gateway</h1>
+    <p>请输入管理令牌（首次启动时打印在控制台窗口）</p>
+    <input id="tokenInput" type="password" placeholder="lgw-..." autocomplete="off">
+    <button id="tokenBtn">进入控制台</button>
+    <div id="tokenErr" class="error"></div>
+  </div>
+</div>
+
+<div id="app" class="layout hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div><div class="name">LLM Gateway</div><div class="ver" id="ver"></div></div>
+    </div>
+    <nav>
+      <a data-page="dashboard" class="active">📊 仪表盘</a>
+      <a data-page="providers">🔌 上游服务</a>
+      <a data-page="test">🧪 模型测试</a>
+      <a data-page="keys">🔑 API 密钥</a>
+      <a data-page="logs">📜 请求日志</a>
+      <a data-page="settings">⚙️ 设置</a>
+    </nav>
+    <div class="sidebar-foot">本机服务 · 数据不出网</div>
+  </aside>
+
+  <main class="content">
+    <!-- 仪表盘 -->
+    <section id="page-dashboard" class="page active">
+      <h2>仪表盘</h2>
+      <div class="cards">
+        <div class="card"><div class="num" id="stToday">-</div><div class="lbl">24h 请求数</div></div>
+        <div class="card"><div class="num" id="stSucc">-</div><div class="lbl">24h 成功率</div></div>
+        <div class="card"><div class="num" id="stLat">-</div><div class="lbl">平均延迟 (ms)</div></div>
+        <div class="card"><div class="num" id="stTok">-</div><div class="lbl">平均 Tokens</div></div>
+        <div class="card"><div class="num" id="stTotal">-</div><div class="lbl">累计请求数</div></div>
+      </div>
+      <div class="panel">
+        <h3>24 小时请求趋势</h3>
+        <canvas id="chart" height="90"></canvas>
+      </div>
+      <div class="grid2">
+        <div class="panel"><h3>上游调用分布 (24h)</h3><table id="tblProvStats"></table></div>
+        <div class="panel"><h3>热门模型 (24h)</h3><table id="tblModelStats"></table></div>
+      </div>
+    </section>
+
+    <!-- 上游服务 -->
+    <section id="page-providers" class="page">
+      <div class="page-head"><h2>上游服务</h2><button class="primary" id="btnAddProv">+ 添加上游</button></div>
+      <p class="hint">网关将按优先级把请求路由到支持对应模型的上游；同一模型可配置多个上游实现故障转移。</p>
+      <table class="table" id="tblProviders"></table>
+    </section>
+
+    <!-- 模型测试 -->
+    <section id="page-test" class="page">
+      <h2>模型测试</h2>
+      <p class="hint">直接使用上游密钥向指定上游发送对话，验证连通性与模型效果；不消耗本地密钥配额，测试请求不写入日志。</p>
+      <div class="panel form">
+        <div class="row3">
+          <label>上游<select id="tProv"></select></label>
+          <label>模型<input id="tModel" list="tModelList" placeholder="选择或输入模型名"><datalist id="tModelList"></datalist></label>
+          <label class="check" style="align-self:end"><input id="tStream" type="checkbox"> 流式输出</label>
+        </div>
+        <div class="btn-group" style="margin:-6px 0 12px">
+          <button class="small" id="tRefreshModels">从上游拉取模型列表</button>
+        </div>
+        <label>System 提示词（可选）<input id="tSystem" placeholder="例如：你是一个乐于助人的助手"></label>
+        <label>用户消息<textarea id="tMsg" rows="4" placeholder="输入要发送给模型的内容..."></textarea></label>
+        <button class="primary" id="tSend">发送测试</button>
+      </div>
+      <div class="panel">
+        <h3>响应</h3>
+        <div id="tOut" class="test-out">（尚未测试）</div>
+        <div id="tMeta" class="dim" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <!-- API 密钥 -->
+    <section id="page-keys" class="page">
+      <div class="page-head"><h2>API 密钥</h2><button class="primary" id="btnAddKey">+ 新建密钥</button></div>
+      <p class="hint">客户端使用本机密钥访问 <code id="gwEndpoint"></code>，格式与 OpenAI SDK 完全兼容。</p>
+      <div class="code-block">
+        <pre>from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密钥")</pre>
+      </div>
+      <table class="table" id="tblKeys"></table>
+    </section>
+
+    <!-- 请求日志 -->
+    <section id="page-logs" class="page">
+      <div class="page-head"><h2>请求日志</h2>
+        <div class="filters">
+          <input id="logModel" placeholder="模型名过滤">
+          <select id="logStatus"><option value="0">全部状态</option><option value="200">成功</option><option value="4">4xx</option><option value="5">5xx/失败</option></select>
+          <button id="btnSearchLog">查询</button>
+          <button id="btnClearLog" class="danger">清空日志</button>
+        </div>
+      </div>
+      <table class="table" id="tblLogs"></table>
+      <div class="pager"><button id="logPrev">上一页</button><span id="logPage"></span><button id="logNext">下一页</button></div>
+    </section>
+
+    <!-- 设置 -->
+    <section id="page-settings" class="page">
+      <h2>设置</h2>
+      <div class="panel form">
+        <label>监听地址 <input id="setHost" placeholder="127.0.0.1"></label>
+        <label>监听端口 <input id="setPort" type="number" placeholder="8688"></label>
+        <label>日志保留天数 <input id="setRetention" type="number" min="1"></label>
+        <label class="check"><input id="setBrowser" type="checkbox"> 启动时自动打开浏览器</label>
+        <button class="primary" id="btnSaveSettings">保存设置</button>
+        <p class="hint">修改监听地址/端口后需重启服务生效。</p>
+      </div>
+      <div class="panel form">
+        <h3>管理令牌</h3>
+        <div class="token-row"><input id="adminToken" readonly><button id="btnCopyToken">复制</button></div>
+        <p class="hint">管理令牌用于访问本控制台，请妥善保管，勿在客户端中使用。</p>
+      </div>
+      <div class="panel form">
+        <h3>数据目录</h3><code id="dataDir"></code>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 上游编辑弹窗 -->
+<div id="provModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="provModalTitle">添加上游</h3>
+    <input type="hidden" id="pId">
+    <label>名称 *<input id="pName" placeholder="例如 DeepSeek"></label>
+    <label>Base URL *<input id="pBase" placeholder="https://api.deepseek.com"></label>
+    <label>API Key<input id="pKey" type="password" placeholder="上游服务商密钥"></label>
+    <label>支持模型（逗号分隔，* 表示全部）<input id="pModels" placeholder="deepseek-chat, deepseek-reasoner"></label>
+    <div class="row3">
+      <label>优先级(小=优先)<input id="pPriority" type="number" value="0"></label>
+      <label>超时(秒)<input id="pTimeout" type="number" value="60"></label>
+      <label>故障转移次数<input id="pRetries" type="number" value="1" min="0" max="5"></label>
+    </div>
+    <label>额外请求头(JSON)<input id="pHeaders" placeholder='{"X-Custom":"v"}'></label>
+    <div class="modal-actions">
+      <button id="btnCancelProv">取消</button>
+      <button class="primary" id="btnSaveProv">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 密钥弹窗 -->
+<div id="keyModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>新建 API 密钥</h3>
+    <label>备注<input id="kName" placeholder="例如：本机开发"></label>
+    <label>限速（次/分钟，0 不限）<input id="kRpm" type="number" value="0" min="0"></label>
+    <div class="modal-actions">
+      <button id="btnCancelKey">取消</button>
+      <button class="primary" id="btnSaveKey">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建密钥结果 -->
+<div id="keyResultModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>密钥已创建</h3>
+    <p class="hint">请立即保存，密钥只显示一次：</p>
+    <div class="token-row"><input id="newKeyValue" readonly><button id="btnCopyNewKey">复制</button></div>
+    <div class="modal-actions"><button class="primary" id="btnCloseKeyResult">完成</button></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

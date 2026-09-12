@@ -1,0 +1,87 @@
+# LLM Gateway — Windows 本地大模型 API 集中管理网关
+
+面向 Windows 的本地网关软件：把多个上游大模型 API（OpenAI、DeepSeek、Moonshot、智谱、阿里云百炼等任意 OpenAI 兼容服务）统一到一个本机出口 `http://127.0.0.1:8688/v1`，提供图形化管理界面，集中管理 API 密钥、切换上游、监控请求状态。**所有数据保存在本机，默认仅监听 127.0.0.1。**
+
+## 功能特性
+
+- **统一出口**：完全兼容 OpenAI SDK（`chat/completions`、`completions`、`embeddings`、`images`、`responses`、`models`），客户端只需改 `base_url`。
+- **多上游管理**：任意添加 OpenAI 兼容上游，配置模型列表、优先级、超时、自定义请求头；支持 `*` 通配模型。
+- **智能路由与故障转移**：按模型路由到支持的上游，按优先级选择；失败自动切换到下一上游（可配置重试次数）。
+- **API 密钥集中管理**：本地签发 `sk-` 密钥供客户端使用，支持停用、按分钟限流；上游真实密钥只保存在服务端，不出现在客户端。
+- **流式输出透传**：SSE 流式响应原样透传，兼容流式调用与工具调用。
+- **请求监控**：请求日志（状态码、延迟、Token 用量、错误信息）、24h 趋势图、上游/模型分布统计。
+- **图形化界面**：启动自动打开浏览器进入控制台，无需命令行；控制台内置**模型测试**页，选择上游与模型即可对话测试（支持流式输出、Token/延迟统计），不消耗本地密钥配额。
+- **健康检查**：一键检测上游连通性并自动拉取模型列表。
+- **Windows 安装包**：Inno Setup 一键安装、桌面快捷方式、开机即用。
+
+## 快速开始（源码运行）
+
+要求：Windows 10/11，Python 3.10+
+
+```bat
+install.bat    :: 安装依赖（只需一次）
+run.bat        :: 启动网关，自动打开 http://127.0.0.1:8688/
+```
+
+首次启动时控制台会打印 **管理令牌（Admin Token）**，在浏览器登录页输入即可进入控制台。
+
+## 制作 Windows 安装包（免 Python 环境）
+
+```bat
+build.bat
+```
+
+生成 `dist\LLMGateway\LLMGateway.exe`（已内置 Python 运行时）。再用 [Inno Setup 6](https://jrsoftware.org/isdl.php) 打开 `installer.iss` 编译，得到 `installer-output\LLMGateway-Setup-1.0.0.exe`，双击安装即用，无需安装 Python。
+
+## 使用流程
+
+1. **添加上游**：控制台 → 上游服务 → 添加上游，填入名称、Base URL、上游 API Key、支持模型（逗号分隔，`*` 表示全部）→ 保存并启用。
+2. **健康检查**：点击上游「检测」，正常后显示延迟与状态。
+3. **签发密钥**：控制台 → API 密钥 → 新建密钥，复制 `sk-...`。
+4. **客户端接入**（以 Python OpenAI SDK 为例）：
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密钥")
+print(client.chat.completions.create(model="deepseek-chat",
+      messages=[{"role": "user", "content": "你好"}]).choices[0].message.content)
+```
+
+5. **监控**：仪表盘查看成功率/延迟/Token 统计；请求日志可过滤、分页、清空。
+
+## 路由与故障转移规则
+
+- 请求体中的 `model` 决定路由：网关在所有「启用」的上游中查找 `models` 包含该模型（或 `*`）的上游。
+- 多个上游支持同一模型时，按「优先级（小=优先）→ 最近延迟」排序选择。
+- 单次请求失败（网络错误/5xx）时，自动按序尝试后续上游，尝试次数 = `故障转移次数 + 1`。
+
+## 数据与安全
+
+- 数据库：`%LOCALAPPDATA%\LLMGateway\gateway.db`（上游密钥、本机密钥、日志、设置），可用环境变量 `LLM_GATEWAY_HOME` 覆盖。
+- 管理令牌保存在数据库 settings 中，仅用于登录控制台；客户端必须使用本机签发的 `sk-` 密钥。
+- 默认只监听 `127.0.0.1`；如需局域网内其他设备访问，可在设置中改为 `0.0.0.0` 并自行配置防火墙。
+- 日志默认保留 30 天，可自动清理，也可手动清空。
+
+## 命令行参数
+
+```bat
+LLMGateway.exe --host 127.0.0.1 --port 8688   :: 指定监听地址/端口
+LLMGateway.exe --no-browser                    :: 启动时不自动打开浏览器
+```
+
+## 项目结构
+
+```
+app/
+  main.py      FastAPI 主程序：管理 API + /v1/* 代理出口 + 静态界面
+  proxy.py     转发引擎：健康检查、非流式/流式(SSE)转发、usage 提取
+  db.py        SQLite 数据层：providers / api_keys / logs / settings
+  schemas.py   Pydantic 模型
+  static/      管理控制台（原生 HTML/CSS/JS，无构建步骤）
+launcher.py    PyInstaller 打包入口
+gateway.spec   PyInstaller 配置
+build.bat      打包脚本
+installer.iss  Inno Setup 安装包脚本
+run.bat        开发/源码方式启动
+install.bat    安装依赖
+```
