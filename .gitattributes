@@ -1,0 +1,3 @@
+* text=auto
+# Windows 批处理必须 CRLF，否则 cmd 解析错乱（%~dp0 等变量失效）
+*.bat text eol=crlf
