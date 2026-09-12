@@ -260,9 +260,9 @@ function drawChart(hourly) {
   const bw = W / 24;
   for (let i = 0; i < 24; i++) {
     const bh = (buckets[i] / max) * (H - 30);
-    ctx.fillStyle = "#4f8cff";
+    ctx.fillStyle = "#1a73e8";
     ctx.fillRect(i * bw + 4, H - 20 - bh, bw - 8, bh);
-    ctx.fillStyle = "#8b95ad";
+    ctx.fillStyle = "#5f6368";
     ctx.font = "18px sans-serif";
     if (i % 4 === 0) ctx.fillText(`${23 - i}h`, i * bw + 4, H - 2);
   }
