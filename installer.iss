@@ -2,7 +2,7 @@
 ; 使用 Inno Setup 6+ 编译本文件，生成 Setup.exe
 
 #define MyAppName "Switchboard"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "Local"
 #define MyAppExe "Switchboard.exe"
 
@@ -15,7 +15,7 @@ DefaultDirName={autopf}\Switchboard
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=installer-output
-OutputBaseFilename=Switchboard-Setup-1.2.0
+OutputBaseFilename=Switchboard-Setup-1.3.0
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
