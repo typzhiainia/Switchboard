@@ -455,6 +455,16 @@ $("#btnSaveSettings").onclick = async () => {
 };
 $("#btnCopyToken").onclick = () => { navigator.clipboard.writeText($("#adminToken").value); toast("已复制"); };
 
+$("#btnShutdown").onclick = async () => {
+  if (!confirm("确认停止网关服务？停止后需要重新运行 LLMGateway 才能继续使用。")) return;
+  try { await api("/api/shutdown", { method: "POST" }); } catch (e) { /* 服务关闭后连接中断属正常 */ }
+  setTimeout(() => {
+    document.body.innerHTML =
+      '<div class="token-gate"><div class="token-box"><h1>网关服务已停止</h1>' +
+      '<p>请重新运行 LLMGateway 后刷新本页。</p></div></div>';
+  }, 800);
+};
+
 /* ---------------- boot ---------------- */
 async function boot() {
   $("#tokenGate").classList.add("hidden");

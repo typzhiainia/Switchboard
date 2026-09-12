@@ -32,6 +32,7 @@ OPENAI_PATHS = {"chat/completions", "completions", "embeddings", "images/generat
                 "models", "responses"}
 RATE_WINDOW = defaultdict(deque)  # key_id -> deque[timestamp]
 _STATE = {"admin_token": ""}
+_SERVER = None  # uvicorn.Server 实例（用于界面优雅停止服务）
 
 
 # ---------------------------------------------------------------- helpers
@@ -268,6 +269,19 @@ def api_put_settings(s: schemas.SettingsIn, _=Depends(require_admin)):
     for k, v in d.items():
         db.set_setting(k, "1" if v is True else "0" if v is False else str(v))
     return api_get_settings()
+
+
+@app.post("/api/shutdown")
+async def api_shutdown(_=Depends(require_admin)):
+    """优雅停止网关服务：先返回响应，0.5 秒后关闭 uvicorn。"""
+
+    async def _later():
+        await asyncio.sleep(0.5)
+        if _SERVER:
+            _SERVER.should_exit = True
+
+    asyncio.create_task(_later())
+    return {"ok": True, "message": "服务正在停止"}
 
 
 # ---- model test ----
@@ -552,7 +566,10 @@ def main() -> None:
     if open_browser:
         threading.Timer(1.2, lambda: webbrowser.open(f"http://{host}:{port}/")).start()
 
-    uvicorn.run("app.main:app", host=host, port=port, log_level="info")
+    global _SERVER
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    _SERVER = uvicorn.Server(config)
+    _SERVER.run()
 
 
 if __name__ == "__main__":

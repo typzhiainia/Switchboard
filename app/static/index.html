@@ -130,6 +130,11 @@ client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密
       <div class="panel form">
         <h3>数据目录</h3><code id="dataDir"></code>
       </div>
+      <div class="panel form">
+        <h3>服务控制</h3>
+        <button class="danger" id="btnShutdown">停止网关服务</button>
+        <p class="hint">停止后本页面将失去连接，需要重新运行 LLMGateway 才能继续使用。</p>
+      </div>
     </section>
   </main>
 </div>
