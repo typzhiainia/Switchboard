@@ -435,6 +435,8 @@ async function loadSettings() {
   $("#setHost").value = s.listen_host;
   $("#setPort").value = s.listen_port;
   $("#setRetention").value = s.log_retention_days;
+  $("#setCircuitThreshold").value = s.circuit_threshold;
+  $("#setCircuitCooldown").value = s.circuit_cooldown;
   $("#setBrowser").checked = s.open_browser_on_start;
   $("#adminToken").value = s.admin_token;
   $("#dataDir").textContent = v.data_dir;
@@ -447,6 +449,8 @@ $("#btnSaveSettings").onclick = async () => {
         listen_host: $("#setHost").value.trim() || "127.0.0.1",
         listen_port: +$("#setPort").value || 8688,
         log_retention_days: +$("#setRetention").value || 30,
+        circuit_threshold: Math.max(1, +$("#setCircuitThreshold").value || 3),
+        circuit_cooldown: Math.max(1, +$("#setCircuitCooldown").value || 60),
         open_browser_on_start: $("#setBrowser").checked,
       },
     });

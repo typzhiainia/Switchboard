@@ -118,9 +118,14 @@ client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密
         <label>监听地址 <input id="setHost" placeholder="127.0.0.1"></label>
         <label>监听端口 <input id="setPort" type="number" placeholder="8688"></label>
         <label>日志保留天数 <input id="setRetention" type="number" min="1"></label>
+        <div class="row3" style="max-width:420px">
+          <label>熔断阈值(连续失败次数)<input id="setCircuitThreshold" type="number" min="1" max="100"></label>
+          <label>熔断冷却(秒)<input id="setCircuitCooldown" type="number" min="1"></label>
+          <label>&nbsp;</label>
+        </div>
         <label class="check"><input id="setBrowser" type="checkbox"> 启动时自动打开浏览器</label>
         <button class="primary" id="btnSaveSettings">保存设置</button>
-        <p class="hint">修改监听地址/端口后需重启服务生效。</p>
+        <p class="hint">熔断：上游连续失败达到阈值后跳过该上游，冷却秒数后自动半开重试。修改监听地址/端口后需重启服务生效。</p>
       </div>
       <div class="panel form">
         <h3>管理令牌</h3>

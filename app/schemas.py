@@ -43,6 +43,8 @@ class SettingsIn(BaseModel):
     listen_port: Optional[int] = None
     log_retention_days: Optional[int] = None
     open_browser_on_start: Optional[bool] = None
+    circuit_threshold: Optional[int] = Field(default=None, ge=1, le=100)
+    circuit_cooldown: Optional[float] = Field(default=None, ge=1, le=86400)
 
 
 class HealthResult(BaseModel):

@@ -44,12 +44,20 @@ def join_url(base: str, endpoint: str) -> str:
 
 class CircuitBreaker:
     """熔断器：同一上游连续失败达到阈值后熔断，冷却期内不再参与选路；
-    冷却结束后自动半开，试探成功即恢复。"""
+    冷却结束后自动半开，试探成功即恢复。
+    阈值与冷却秒数从系统设置动态读取（circuit_threshold / circuit_cooldown）。"""
 
-    def __init__(self, threshold: int = 3, cooldown: float = 60.0):
-        self.threshold = threshold
-        self.cooldown = cooldown
+    def __init__(self):
         self._state: dict[int, dict] = {}
+
+    @staticmethod
+    def _config() -> tuple[int, float]:
+        try:
+            threshold = int(db.get_setting("circuit_threshold", "3") or 3)
+            cooldown = float(db.get_setting("circuit_cooldown", "60") or 60)
+        except ValueError:
+            threshold, cooldown = 3, 60.0
+        return max(1, threshold), max(1.0, cooldown)
 
     def is_open(self, pid: int) -> bool:
         st = self._state.get(pid)
@@ -59,10 +67,11 @@ class CircuitBreaker:
         self._state.pop(pid, None)
 
     def record_failure(self, pid: int) -> None:
+        threshold, cooldown = self._config()
         st = self._state.setdefault(pid, {"fails": 0, "open_until": 0.0})
         st["fails"] += 1
-        if st["fails"] >= self.threshold:
-            st["open_until"] = time.time() + self.cooldown
+        if st["fails"] >= threshold:
+            st["open_until"] = time.time() + cooldown
             st["fails"] = 0
 
     def status_of(self, pid: int) -> dict:

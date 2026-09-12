@@ -257,6 +257,8 @@ def api_get_settings(_=Depends(require_admin)):
         "listen_port": int(db.get_setting("listen_port", "8688")),
         "log_retention_days": int(db.get_setting("log_retention_days", "30")),
         "open_browser_on_start": db.get_setting("open_browser_on_start", "1") == "1",
+        "circuit_threshold": int(db.get_setting("circuit_threshold", "3")),
+        "circuit_cooldown": float(db.get_setting("circuit_cooldown", "60")),
         "admin_token": _STATE["admin_token"],
     }
 
