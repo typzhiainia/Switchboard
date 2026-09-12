@@ -1,4 +1,4 @@
-# LLM Gateway 主程序：管理 API + /v1 代理出口 + 管理界面
+# Switchboard 主程序：管理 API + /v1 代理出口 + 管理界面
 # 启动: python -m app.main [--host 127.0.0.1] [--port 8688]
 import argparse
 import asyncio
@@ -71,14 +71,14 @@ async def lifespan(app: FastAPI):
     db.init_db()
     token = db.get_setting("admin_token")
     if not token:
-        token = "lgw-" + secrets.token_urlsafe(24)
+        token = "swb-" + secrets.token_urlsafe(24)
         db.set_setting("admin_token", token)
     _STATE["admin_token"] = token
     if not db.list_providers():
         seed_providers()
     if db.get_setting("first_run", "1") == "1":
         print("\n" + "=" * 56)
-        print("  LLM Gateway 管理界面:  http://127.0.0.1:%s/" % db.get_setting("listen_port", "8688"))
+        print("  Switchboard 管理界面:  http://127.0.0.1:%s/" % db.get_setting("listen_port", "8688"))
         print("  管理令牌(Admin Token):  %s" % token)
         print("  请妥善保存管理令牌，客户端只需使用本机 API 密钥。")
         print("=" * 56 + "\n")
@@ -117,7 +117,7 @@ def seed_providers() -> None:
         db.create_provider(t)
 
 
-app = FastAPI(title="LLM Gateway", version=__version__, lifespan=lifespan)
+app = FastAPI(title="Switchboard", version=__version__, lifespan=lifespan)
 
 
 # ---- admin api ----
@@ -549,7 +549,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # ---- entry ----
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="LLM Gateway 本地大模型 API 网关")
+    parser = argparse.ArgumentParser(description="Switchboard 本地大模型 API 网关")
     parser.add_argument("--host", default=None, help="监听地址(默认取配置或 127.0.0.1)")
     parser.add_argument("--port", type=int, default=None, help="监听端口(默认取配置或 8688)")
     parser.add_argument("--no-browser", action="store_true", help="启动时不自动打开浏览器")

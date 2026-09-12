@@ -63,13 +63,13 @@ CREATE INDEX IF NOT EXISTS idx_logs_model ON logs(model);
 
 def data_dir() -> Path:
     # Windows 用 %LOCALAPPDATA%，其他平台放 home 目录
-    override = os.environ.get("LLM_GATEWAY_HOME")
+    override = os.environ.get("SWITCHBOARD_HOME")
     if override:
         d = Path(override)
     elif os.name == "nt":
         d = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "LLMGateway"
     else:
-        d = Path.home() / ".llmgateway"
+        d = Path.home() / ".switchboard"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

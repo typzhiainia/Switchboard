@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LLM Gateway 管理控制台</title>
+<title>Switchboard 管理控制台</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div id="tokenGate" class="token-gate hidden">
   <div class="token-box">
-    <h1>LLM Gateway</h1>
+    <h1>Switchboard</h1>
     <p>请输入管理令牌（首次启动时打印在控制台窗口）</p>
-    <input id="tokenInput" type="password" placeholder="lgw-..." autocomplete="off">
+    <input id="tokenInput" type="password" placeholder="swb-..." autocomplete="off">
     <button id="tokenBtn">进入控制台</button>
     <div id="tokenErr" class="error"></div>
   </div>
@@ -20,8 +20,8 @@
 <div id="app" class="layout hidden">
   <aside class="sidebar">
     <div class="brand">
-      <div class="logo">⚡</div>
-      <div><div class="name">LLM Gateway</div><div class="ver" id="ver"></div></div>
+      <div class="logo">📞</div>
+      <div><div class="name">Switchboard</div><div class="ver" id="ver"></div></div>
     </div>
     <nav>
       <a data-page="dashboard" class="active">📊 仪表盘</a>
@@ -146,7 +146,7 @@ client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密
       <div class="panel form">
         <h3>服务控制</h3>
         <button class="danger" id="btnShutdown">停止网关服务</button>
-        <p class="hint">停止后本页面将失去连接，需要重新运行 LLMGateway 才能继续使用。</p>
+        <p class="hint">停止后本页面将失去连接，需要重新运行 Switchboard 才能继续使用。</p>
       </div>
     </section>
   </main>

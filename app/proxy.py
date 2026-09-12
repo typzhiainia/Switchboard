@@ -6,7 +6,7 @@ import httpx
 
 from . import db
 
-USER_AGENT = "LLM-Gateway/1.0"
+USER_AGENT = "Switchboard/1.0"
 OPENAI_ENDPOINTS = (
     "/v1/chat/completions",
     "/v1/completions",

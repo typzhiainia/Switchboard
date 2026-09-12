@@ -1,4 +1,4 @@
-# LLM Gateway — Windows 本地大模型 API 集中管理网关
+# Switchboard — Windows 本地大模型 API 集中管理网关
 
 面向 Windows 的本地网关软件：把多个上游大模型 API（OpenAI、DeepSeek、Moonshot、智谱、阿里云百炼等任意 OpenAI 兼容服务）统一到一个本机出口 `http://127.0.0.1:8688/v1`，提供图形化管理界面，集中管理 API 密钥、切换上游、监控请求状态。**所有数据保存在本机，默认仅监听 127.0.0.1。**
 
@@ -33,7 +33,7 @@ run.bat        :: 启动网关，自动打开 http://127.0.0.1:8688/
 build.bat
 ```
 
-生成 `dist\LLMGateway\LLMGateway.exe`（已内置 Python 运行时）。再用 [Inno Setup 6](https://jrsoftware.org/isdl.php) 打开 `installer.iss` 编译，得到 `installer-output\LLMGateway-Setup-1.0.0.exe`，双击安装即用，无需安装 Python。
+生成 `dist\Switchboard\Switchboard.exe`（已内置 Python 运行时）。再用 [Inno Setup 6](https://jrsoftware.org/isdl.php) 打开 `installer.iss` 编译，得到 `installer-output\Switchboard-Setup-1.0.0.exe`，双击安装即用，无需安装 Python。
 
 ## 使用流程
 
@@ -60,14 +60,14 @@ print(client.chat.completions.create(model="deepseek-chat",
 
 ## 数据与安全
 
-- 数据库：`%LOCALAPPDATA%\LLMGateway\gateway.db`（上游密钥、本机密钥、日志、设置），可用环境变量 `LLM_GATEWAY_HOME` 覆盖。
+- 数据库：`%LOCALAPPDATA%\Switchboard\gateway.db`（上游密钥、本机密钥、日志、设置），可用环境变量 `SWITCHBOARD_HOME` 覆盖。
 - 管理令牌保存在数据库 settings 中，仅用于登录控制台；客户端必须使用本机签发的 `sk-` 密钥。
 - 默认只监听 `127.0.0.1`；如需局域网内其他设备访问，可在设置中改为 `0.0.0.0` 并自行配置防火墙。
 - 日志默认保留 30 天，可自动清理，也可手动清空。
 
 ## 运行与停止
 
-- **启动**：双击 `LLMGateway.exe`（或桌面快捷方式），出现黑色控制台窗口并自动打开管理页面。
+- **启动**：双击 `Switchboard.exe`（或桌面快捷方式），出现黑色控制台窗口并自动打开管理页面。
 - **手动停止**（三种方式任选）：
   1. 控制台 → 设置 → 「停止网关服务」按钮（优雅停止，推荐）；
   2. 在黑色控制台窗口按 `Ctrl+C`；
@@ -78,8 +78,8 @@ print(client.chat.completions.create(model="deepseek-chat",
 ## 命令行参数
 
 ```bat
-LLMGateway.exe --host 127.0.0.1 --port 8688   :: 指定监听地址/端口
-LLMGateway.exe --no-browser                    :: 启动时不自动打开浏览器
+Switchboard.exe --host 127.0.0.1 --port 8688   :: 指定监听地址/端口
+Switchboard.exe --no-browser                    :: 启动时不自动打开浏览器
 ```
 
 ## 项目结构

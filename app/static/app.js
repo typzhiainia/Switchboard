@@ -2,7 +2,7 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
-let ADMIN_TOKEN = localStorage.getItem("lgw_admin_token") || "";
+let ADMIN_TOKEN = localStorage.getItem("swb_admin_token") || "";
 let logPage = 0, logLimit = 50, logTotal = 0;
 
 async function api(path, opts = {}) {
@@ -56,7 +56,7 @@ $("#tokenBtn").onclick = async () => {
   ADMIN_TOKEN = $("#tokenInput").value.trim();
   try {
     await api("/api/status");
-    localStorage.setItem("lgw_admin_token", ADMIN_TOKEN);
+    localStorage.setItem("swb_admin_token", ADMIN_TOKEN);
     boot();
   } catch (e) {
     $("#tokenErr").textContent = e.message;
@@ -485,12 +485,12 @@ $("#btnSaveSettings").onclick = async () => {
 $("#btnCopyToken").onclick = () => { navigator.clipboard.writeText($("#adminToken").value); toast("已复制"); };
 
 $("#btnShutdown").onclick = async () => {
-  if (!confirm("确认停止网关服务？停止后需要重新运行 LLMGateway 才能继续使用。")) return;
+  if (!confirm("确认停止网关服务？停止后需要重新运行 Switchboard 才能继续使用。")) return;
   try { await api("/api/shutdown", { method: "POST" }); } catch (e) { /* 服务关闭后连接中断属正常 */ }
   setTimeout(() => {
     document.body.innerHTML =
       '<div class="token-gate"><div class="token-box"><h1>网关服务已停止</h1>' +
-      '<p>请重新运行 LLMGateway 后刷新本页。</p></div></div>';
+      '<p>请重新运行 Switchboard 后刷新本页。</p></div></div>';
   }, 800);
 };
 
