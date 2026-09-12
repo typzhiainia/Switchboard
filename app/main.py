@@ -571,7 +571,32 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ---- entry ----
 
+def _log_crash(exc_type, exc, tb) -> None:
+    # 崩溃时把堆栈写入数据目录，控制台窗口闪退后仍能定位原因
+    try:
+        import traceback
+        log = db.data_dir() / "crash.log"
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("=" * 60 + "\n")
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
+            traceback.print_exception(exc_type, exc, tb, file=f)
+    except Exception:  # noqa: BLE001 日志失败不影响原始异常
+        pass
+
+
 def main() -> None:
+    try:
+        _main()
+    except KeyboardInterrupt:
+        pass
+    except SystemExit:
+        raise
+    except BaseException as e:  # noqa: BLE001 记录后照常抛出
+        _log_crash(type(e), e, e.__traceback__)
+        raise
+
+
+def _main() -> None:
     parser = argparse.ArgumentParser(description="Switchboard 本地大模型 API 网关")
     parser.add_argument("--host", default=None, help="监听地址(默认取配置或 127.0.0.1)")
     parser.add_argument("--port", type=int, default=None, help="监听端口(默认取配置或 8688)")
