@@ -203,6 +203,16 @@ async def api_check_provider(pid: int, _=Depends(require_admin)):
     return await proxy.check_provider(p)
 
 
+@app.post("/api/providers/probe")
+async def api_probe_models(p: schemas.ModelsProbeIn, _=Depends(require_admin)):
+    # 添加上游前的连通性/模型列表探测，不落库、不影响熔断
+    temp = {"id": -1, "base_url": p.base_url.strip().rstrip("/"),
+            "api_key": p.api_key, "timeout": 15.0}
+    r = await proxy.check_provider(temp)
+    proxy.CIRCUIT._state.pop(-1, None)
+    return r
+
+
 # ---- api keys ----
 
 @app.get("/api/keys")

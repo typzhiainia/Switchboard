@@ -281,6 +281,7 @@ function drawThroughput(items) {
   const W = (c.width = c.offsetWidth * 2), H = (c.height = 190);
   ctx.clearRect(0, 0, W, H);
   if (!items.length) {
+    tpData = null;
     ctx.fillStyle = "#9aa0a6"; ctx.font = "18px sans-serif";
     ctx.fillText("暂无数据（运行几分钟后出现）", 16, 40);
     return;
@@ -295,6 +296,7 @@ function drawThroughput(items) {
     }
     pts.push({ m: items[i].m, v });
   }
+  tpData = { pts, padL: 14, padR: 10 };
   const max = Math.max(...pts.map((p) => p.v), 1);
   const padL = 14, padR = 10, padT = 30, padB = 36;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -347,6 +349,38 @@ function segBind(segId, onPick) {
 segBind("#tpMetricSeg", (d) => { tpMetric = d.metric; loadThroughput(); });
 segBind("#tpRangeSeg", (d) => { tpMinutes = +d.min; loadThroughput(); });
 
+// ---- 图表悬停数值提示 ----
+let hourlyData = null, tpData = null;
+
+function bindChartTip(canvasId, dataFn, fmtFn) {
+  const c = $(canvasId);
+  const tip = document.createElement("div");
+  tip.className = "chart-tip hidden";
+  c.parentElement.appendChild(tip);
+  c.addEventListener("mousemove", (e) => {
+    const d = dataFn();
+    if (!d || !d.pts.length) { tip.classList.add("hidden"); return; }
+    const rect = c.getBoundingClientRect();
+    const scaleX = c.width / rect.width;
+    const bw = (c.width - d.padL - d.padR) / d.pts.length;
+    const i = Math.floor(((e.clientX - rect.left) * scaleX - d.padL) / bw);
+    if (i < 0 || i >= d.pts.length) { tip.classList.add("hidden"); return; }
+    tip.textContent = fmtFn(d.pts[i], i);
+    tip.classList.remove("hidden");
+    tip.style.left = ((d.padL + i * bw + bw / 2) / scaleX) + "px";
+    tip.style.top = "34px";
+  });
+  c.addEventListener("mouseleave", () => tip.classList.add("hidden"));
+}
+
+bindChartTip("#chart", () => hourlyData,
+  (p) => `${p.i === 0 ? "当前小时" : p.i + " 小时前"} · ${p.v} 次`);
+bindChartTip("#tpChart", () => tpData, (p) => {
+  const d = new Date(p.m * 1000);
+  const lbl = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${lbl} · ${fmtNum(p.v)} ${tpMetric === "r" ? "次请求" : "Tokens"}`;
+});
+
 function drawChart(hourly) {
   const c = $("#chart");
   const ctx = c.getContext("2d");
@@ -354,6 +388,7 @@ function drawChart(hourly) {
   ctx.clearRect(0, 0, W, H);
   const buckets = new Array(24).fill(0);
   hourly.forEach((h) => { if (h.hour >= 0 && h.hour < 24) buckets[h.hour] = h.count; });
+  hourlyData = { pts: buckets.map((v, i) => ({ v, i })), padL: 14, padR: 10 };
   const max = Math.max(...buckets, 1);
   const padL = 14, padR = 10, padT = 30, padB = 36;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -471,6 +506,7 @@ window.editProv = (id) => {
     $("#pTimeout").value = p.timeout;
     $("#pRetries").value = p.max_retries;
     $("#pHeaders").value = JSON.stringify(p.headers || {});
+    resetModelChips();
     $("#provModal").classList.remove("hidden");
   });
 };
@@ -480,8 +516,65 @@ $("#btnAddProv").onclick = () => {
   $("#pPriority").value = 0; $("#pWeight").value = 1;
   $("#pTimeout").value = 60; $("#pRetries").value = 1;
   $("#pHeaders").value = "";
+  resetModelChips();
   $("#provModal").classList.remove("hidden");
 };
+
+// ---- 模型列表探测（添加上游时从上游拉取） ----
+let probedModels = [];
+
+function resetModelChips() {
+  probedModels = [];
+  $("#pModelChips").classList.add("hidden");
+  $("#pModelChips").innerHTML = "";
+  $("#btnPickAllModels").classList.add("hidden");
+}
+
+function curModels() {
+  return $("#pModels").value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+}
+
+function renderModelChips() {
+  const sel = new Set(curModels());
+  const box = $("#pModelChips");
+  box.innerHTML = probedModels.map((m) =>
+    `<span class="chip${sel.has(m) ? " active" : ""}" data-m="${esc(m)}">${esc(m)}</span>`).join("");
+  box.classList.remove("hidden");
+  $("#btnPickAllModels").classList.remove("hidden");
+  $$("#pModelChips .chip").forEach((c) => {
+    c.onclick = () => {
+      const m = c.dataset.m;
+      const cur = curModels();
+      $("#pModels").value = (cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m]).join(", ");
+      renderModelChips();
+    };
+  });
+}
+
+$("#btnProbeModels").onclick = async () => {
+  const base = $("#pBase").value.trim();
+  if (!base) { toast("请先填写 Base URL"); return; }
+  toast("正在从上游拉取模型列表...");
+  try {
+    const r = await api("/api/providers/probe", { json: { base_url: base, api_key: $("#pKey").value } });
+    if (!r.ok) { toast("拉取失败: " + (r.error || "未知错误")); return; }
+    probedModels = r.models || [];
+    if (!probedModels.length) { toast("上游未返回模型列表"); resetModelChips(); return; }
+    renderModelChips();
+    toast(`已获取 ${probedModels.length} 个模型，点击芯片添加/移除`);
+  } catch (e) { toast(e.message); }
+};
+
+$("#btnPickAllModels").onclick = () => {
+  const cur = new Set(curModels());
+  probedModels.forEach((m) => cur.add(m));
+  $("#pModels").value = [...cur].join(", ");
+  renderModelChips();
+};
+
+$("#pModels").addEventListener("input", () => {
+  if (!$("#pModelChips").classList.contains("hidden")) renderModelChips();
+});
 $("#btnCancelProv").onclick = () => $("#provModal").classList.add("hidden");
 $("#btnSaveProv").onclick = async () => {
   const models = $("#pModels").value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);

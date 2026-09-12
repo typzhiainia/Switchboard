@@ -144,6 +144,11 @@ button.small { padding: 4px 10px; font-size: 12px; }
   color: var(--dim); border-radius: 6px; }
 .seg button.active { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(60, 64, 67, .18); }
 #tpChart { width: 100%; display: block; }
+.chart-wrap { position: relative; }
+.chart-tip { position: absolute; transform: translateX(-50%); background: rgba(32, 33, 36, .92);
+  color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap;
+  pointer-events: none; z-index: 6; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.chart-tip.hidden { display: none; }
 .tp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .tp-item { background: #f8f9fa; border: 1px solid var(--line); border-radius: 10px;
   padding: 16px 12px; text-align: center; }
@@ -155,6 +160,14 @@ button.small { padding: 4px 10px; font-size: 12px; }
 /* 模型测试 */
 .up-notes { background: #f1f3f4; border-radius: 8px; padding: 12px 14px; margin-top: 8px;
   white-space: pre-wrap; word-break: break-word; font-size: 13px; max-height: 260px; overflow: auto; }
+
+/* 模型芯片（上游弹窗拉取模型列表） */
+.model-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px;
+  max-height: 150px; overflow: auto; }
+.chip { padding: 3px 11px; border-radius: 13px; font-size: 12px; border: 1px solid var(--field);
+  background: #fff; color: var(--dim); cursor: pointer; user-select: none; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip.active { background: var(--sel); border-color: var(--accent); color: var(--accent); }
 .test-out { background: #fff; border: 1px solid var(--line); border-radius: 8px;
   padding: 14px; min-height: 120px; max-height: 420px; overflow: auto;
   white-space: pre-wrap; word-break: break-word; line-height: 1.6; }

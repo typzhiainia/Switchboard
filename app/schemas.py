@@ -54,3 +54,8 @@ class HealthResult(BaseModel):
     latency_ms: Optional[float] = None
     error: Optional[str] = None
     models: Optional[list[str]] = None
+
+
+class ModelsProbeIn(BaseModel):
+    base_url: str = Field(..., min_length=1)
+    api_key: str = ""

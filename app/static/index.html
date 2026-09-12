@@ -73,11 +73,11 @@
             <button data-min="1440">24 小时</button>
           </div>
         </div>
-        <canvas id="tpChart" height="90"></canvas>
+        <div class="chart-wrap"><canvas id="tpChart" height="90"></canvas></div>
       </div>
       <div class="panel">
         <h3>24 小时请求趋势</h3>
-        <canvas id="chart" height="90"></canvas>
+        <div class="chart-wrap"><canvas id="chart" height="90"></canvas></div>
       </div>
       <div class="grid2">
         <div class="panel"><h3>上游用量排名</h3><table id="tblProvStats" class="table"></table></div>
@@ -197,6 +197,11 @@ client = OpenAI(base_url="http://127.0.0.1:8688/v1", api_key="sk-你的本机密
     <label>Base URL *<input id="pBase" placeholder="https://api.deepseek.com"></label>
     <label>API Key<input id="pKey" type="password" placeholder="上游服务商密钥"></label>
     <label>支持模型（逗号分隔，* 表示全部）<input id="pModels" placeholder="deepseek-chat, deepseek-reasoner"></label>
+    <div class="btn-group" style="margin:-4px 0 10px">
+      <button class="small" id="btnProbeModels">从上游拉取模型列表</button>
+      <button class="small hidden" id="btnPickAllModels">全部选用</button>
+    </div>
+    <div id="pModelChips" class="model-chips hidden"></div>
     <div class="row4">
       <label>优先级(小=优先)<input id="pPriority" type="number" value="0"></label>
       <label>权重(1-100)<input id="pWeight" type="number" value="1" min="1" max="100"></label>
